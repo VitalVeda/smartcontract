@@ -1,5 +1,14 @@
 {
-  "name": "hardhat-project",
+  "name": "vital-veda-contracts",
+  "version": "1.0.0",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:dev_tbsc": "NODE_ENV=dev hardhat run --network tbsc",
+    "deploy:dev_apothem": "NODE_ENV=dev hardhat run --network apothem",
+    "verify:dev_tbsc": "NODE_ENV=dev hardhat verify --network tbsc",
+    "verify:dev_apothem": "NODE_ENV=dev hardhat verify --network apothem"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
