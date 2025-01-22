@@ -22,9 +22,9 @@ const config: HardhatUserConfig = {
       gas: 12000000,
       blockGasLimit: 0x1fffffffffffff,
       allowUnlimitedContractSize: true,
-      // forking: {
-      //   url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
-      // },
+      forking: {
+        url: "https://rpc.apothem.network",
+      },
     },
     xdc_apothem: {
       url: "https://rpc.apothem.network",
