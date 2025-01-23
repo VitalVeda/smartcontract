@@ -23,36 +23,58 @@ contract WorkoutManagement is
     using SafeERC20 for IVVFIT;
     using ECDSA for bytes32;
 
+    // Name of the contract (used for EIP-712 standard)
     string public constant CONTRACT_NAME = "Workout Management";
+    // Version of the contract (used for EIP-712 standard)
     string public constant CONTRACT_VERSION = "1.0.0";
     // Divider used to calculate percent for fee distribution
     uint256 public constant RATE_DIVIDER = 100_000;
 
+    // Role assigned to operators with specific permissions
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    // Role assigned to instructors with specific permissions
     bytes32 public constant INSTRUCTOR_ROLE = keccak256("INSTRUCTOR_ROLE");
 
+    // Fee required to create an event
     uint256 eventCreationFee;
+    // Percentage of the joining fee allocated to the instructor
     uint256 instructorRate;
+    // Percentage of the joining fee allocated to burning
     uint256 burningRate;
 
+    // Address of the workout treasury contract that holds VVFIT from create event
     address public workoutTreasury;
-    IVVFIT public vvfitToken; // VVFIT token contract interface
+    // VVFIT token contract interface
+    IVVFIT public vvfitToken;
 
+    // Counter for the number of events created
     uint256 public eventCount;
+    // Mapping of event IDs to WorkoutEvent details
     mapping(uint256 => WorkoutEvent) public events;
+    // Mapping of event IDs to boolean values indicating if a salt has been used
     mapping(uint256 => bool) public usedSalt;
 
+    // The typehash for the Claim struct used in the claim process
+    // It is used for verifying the integrity and authenticity of the claim data in a signed message
     bytes32 private constant CLAIM_TYPEHASH =
         keccak256(
             "Claim(uint256 eventId,address user,uint256 totalScores,uint256 score, uint256 salt)"
         );
 
+    /**
+     * @notice Initializes the contract with the given parameters.
+     * @param _vvfitAddress The address of the VVFIT token contract.
+     * @param _workoutTreasury The address of the workout treasury where fees are sent.
+     * @param _eventCreationFee The fee required to create an event.
+     * @dev Grants the DEFAULT_ADMIN_ROLE to the deployer.
+     * Reverts if the `_vvfitAddress` is the zero address.
+     */
     function initialize(
         address _vvfitAddress,
         address _workoutTreasury,
         uint256 _eventCreationFee
     ) public initializer {
-        if (_vvfitAddress == address(0)) {
+        if (_vvfitAddress == address(0) || _workoutTreasury == address(0)) {
             revert ZeroAddress();
         }
         __Pausable_init();
@@ -65,6 +87,13 @@ contract WorkoutManagement is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /**
+     * @dev Modifier to check if the event with the specified ID exists.
+     * Reverts if the event does not exist (i.e., the event ID is greater than or equal to eventCount).
+     * @param _eventId The ID of the event to check.
+     * @notice This modifier is used to ensure that the specified event exists before performing any actions on it.
+     */
+
     modifier eventExists(uint256 _eventId) {
         if (_eventId >= eventCount) {
             revert EventDoesNotExist(_eventId);
@@ -72,6 +101,12 @@ contract WorkoutManagement is
         _;
     }
 
+    /**
+     * @dev Modifier to check if the event has completed.
+     * Reverts if the event's end time has not yet passed (i.e., the event is still ongoing).
+     * @param _eventId The ID of the event to check.
+     * @notice This modifier ensures that the event has finished before performing actions that require the event to be completed.
+     */
     modifier eventHasCompleted(uint256 _eventId) {
         if (events[_eventId].eventEndTime > block.timestamp) {
             revert EventNotCompleted(
@@ -92,6 +127,11 @@ contract WorkoutManagement is
         _unpause();
     }
 
+    /**
+     * @notice Grants the operator role to a specified address.
+     * @param _instructor The address to be granted the operator role.
+     * @dev Reverts if `_instructor` is the zero address.
+     */
     function grantOperatorRole(
         address _instructor
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -101,6 +141,11 @@ contract WorkoutManagement is
         grantRole(OPERATOR_ROLE, _instructor);
     }
 
+    /**
+     * @notice Grants the instructor role to a specified address.
+     * @param _instructor The address to be granted the instructor role.
+     * @dev Reverts if `_instructor` is the zero address.
+     */
     function grantInstructorRole(
         address _instructor
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -110,6 +155,13 @@ contract WorkoutManagement is
         grantRole(INSTRUCTOR_ROLE, _instructor);
     }
 
+    /**
+     * @notice Creates a new workout event.
+     * @param _participationFee The fee required to participate in the event.
+     * @param _eventStartTime The start time of the event (in UNIX timestamp).
+     * @param _eventEndTime The end time of the event (in UNIX timestamp).
+     * @dev Reverts if `_participationFee` is zero, if the event times are invalid, or if the creation fee cannot be transferred.
+     */
     function createEvent(
         uint256 _participationFee,
         uint256 _eventStartTime,
@@ -128,7 +180,11 @@ contract WorkoutManagement is
         }
 
         // Transfer the creation fee to the contract
-        vvfitToken.transferFrom(msg.sender, workoutTreasury, eventCreationFee);
+        vvfitToken.safeTransferFrom(
+            msg.sender,
+            workoutTreasury,
+            eventCreationFee
+        );
         uint256 eventId = eventCount;
         // Create the event
         WorkoutEvent storage newEvent = events[eventId];
@@ -141,6 +197,11 @@ contract WorkoutManagement is
         emit EventCreated(eventId, msg.sender, _eventEndTime);
     }
 
+    /**
+     * @notice Allows a user to participate in an event by paying the participation fee.
+     * @param eventId The ID of the event to participate in.
+     * @dev Reverts if the event has not started, has ended, or if the user has already participated.
+     */
     function participateInEvent(
         uint256 eventId
     ) external eventExists(eventId) whenNotPaused nonReentrant {
@@ -170,7 +231,7 @@ contract WorkoutManagement is
         }
 
         // Transfer the participation fee to the contract an distribute fees
-        vvfitToken.transferFrom(msg.sender, address(this), feeAmount);
+        vvfitToken.safeTransferFrom(msg.sender, address(this), feeAmount);
 
         vvfitToken.burn(burnAmount);
 
@@ -188,6 +249,11 @@ contract WorkoutManagement is
         );
     }
 
+    /**
+     * @notice Allows instructors to claim their accumulated fees from multiple events.
+     * @param eventId The ID of the event for instructor to claim.
+     * @dev Reverts if any event does not exist, is incomplete, or if the caller is not the instructor for an event.
+     */
     function instructorClaimFee(
         uint256 eventId
     )
@@ -215,11 +281,21 @@ contract WorkoutManagement is
         workoutEvent.instructorFeeClaimed = true;
 
         // Transfer fees to instructor
-        vvfitToken.transfer(msg.sender, feeAmount);
+        vvfitToken.safeTransfer(msg.sender, feeAmount);
 
         emit InstructorFeesClaimed(eventId, msg.sender, feeAmount);
     }
 
+    /**
+     * @notice Allows top participants of a workout event to claim their rewards.
+     * @dev Verifies the signature of the claim and ensures the claim is valid and unique.
+     *      This function only applies to completed events.
+     * @param eventId The ID of the workout event for which the reward is being claimed.
+     * @param totalScores The total score of all participants in the event.
+     * @param userScore The score achieved by the caller in the event.
+     * @param salt A unique value to prevent replay attacks.
+     * @param signature A signed message verifying the claim details.
+     */
     function topParticipantsClaimReward(
         uint256 eventId,
         uint256 totalScores,
@@ -227,8 +303,11 @@ contract WorkoutManagement is
         uint256 salt,
         bytes memory signature
     ) external whenNotPaused nonReentrant eventHasCompleted(eventId) {
-        if (events[eventId].hasClaimed[msg.sender])
+        WorkoutEvent storage workoutEvent = events[eventId];
+        if (workoutEvent.hasClaimed[msg.sender])
             revert RewardAlreadyClaimed(eventId, msg.sender);
+
+        if (usedSalt[salt]) revert SaltAlreadyUsed(salt);
 
         // Verify the signature
         bytes32 digest = _hashTypedDataV4(
@@ -249,20 +328,24 @@ contract WorkoutManagement is
         _checkRole(OPERATOR_ROLE, signer);
 
         // Mark as claimed
-        events[eventId].hasClaimed[msg.sender] = true;
+        workoutEvent.hasClaimed[msg.sender] = true;
         usedSalt[salt] = true;
         // Calculate reward based on user score
         uint256 reward = calculateReward(eventId, totalScores, userScore);
 
         // Update pool reward count
-        events[eventId].claimedReward += reward;
+        workoutEvent.claimedReward += reward;
 
         // Transfer reward
-        vvfitToken.transfer(msg.sender, reward);
+        vvfitToken.safeTransfer(msg.sender, reward);
 
         emit TopParticipantsClaimed(eventId, msg.sender, reward);
     }
 
+    /**
+     * @dev Sets the fee required for event creation.
+     * @param _newCreationFee The new fee to be set for event creation.
+     */
     function setEventCreationFee(
         uint256 _newCreationFee
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -270,6 +353,13 @@ contract WorkoutManagement is
         emit EventCreationFeeUpdated(_newCreationFee);
     }
 
+    /**
+     * @dev Sets the reward rates for instructors and burning.
+     * @param _instructorRate The percentage of the reward that goes to the instructor (in basis points).
+     * @param _burningRate The percentage of the reward that gets burned (in basis points).
+     * @notice The sum of instructorRate and burningRate must be less than a predefined constant `RATE_DIVIDER`.
+     * @dev Reverts if the sum of rates is invalid.
+     */
     function setRewardRate(
         uint256 _instructorRate,
         uint256 _burningRate
@@ -282,6 +372,14 @@ contract WorkoutManagement is
         emit RewardRateUpdated(_instructorRate, _burningRate);
     }
 
+    /**
+     * @dev Calculates the reward for a user based on their score in an event.
+     * @param eventId The ID of the event for which the reward is being calculated.
+     * @param totalScores The total score accumulated by all users in the event.
+     * @param userScore The score of the user for whom the reward is being calculated.
+     * @return uint256 The calculated reward for the user.
+     * @notice Reverts if `totalScores` or `userScore` are zero, or if the calculated reward exceeds the available pool.
+     */
     function calculateReward(
         uint256 eventId,
         uint256 totalScores,
@@ -321,11 +419,17 @@ contract WorkoutManagement is
             revert InsufficientBalance(amount, contractBalance);
 
         // Transfer the tokens to the recipient
-        vvfitToken.transfer(recipient, amount);
+        vvfitToken.safeTransfer(recipient, amount);
 
         emit EmergencyWithdraw(msg.sender, amount, recipient);
     }
 
+    /**
+     * @dev Authorizes the upgrade to a new implementation contract.
+     * Only the account with the `DEFAULT_ADMIN_ROLE` can authorize the upgrade.
+     * @param newImplementation The address of the new implementation contract.
+     * @notice This function is required to be called by the `upgradeTo` function in UUPS upgradeable contracts.
+     */
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}

@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
-    //Divider which used in `calculatePercent` function
+    // Divider which used in `calculatePercent` function
     uint256 public constant PERCENT_DIVIDER_DECIMALS = 100_000;
 
-    //VVFIT has maximum total supply of 176 million tokens
+    // VVFIT has maximum total supply of 176 million tokens
     uint256 public constant MAXIMUM_TOTAL_SUPPLY = 17600000000;
 
     /**
@@ -26,52 +26,64 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
      */
     uint256 public purchaseTaxPercent;
 
-    //Percent of tax taken on token sales
+    // Percent of tax taken on token sales
     uint256 public salesTaxPercent;
 
     // Maximum percentage of the token's total supply allowed per transfer
     uint256 public maxTransferPercentage;
 
-    //Shown Is max transfer amount functionality enabled;
+    // Shown Is max transfer amount functionality enabled;
     bool public maxTransferAmountEnabled = true;
 
-    //blacklist[addressOfUser] = status
+    // blacklist[addressOfUser] = status
     mapping(address => bool) public blacklist;
 
-    //whitelist[addressOfUser] = status
+    // whitelist[addressOfUser] = status
     mapping(address => bool) public whitelist;
 
-    //list address of VVFIT pools on DEXs
+    // list address of VVFIT pools on DEXs
     mapping(address => bool) private _listPoolAddress;
 
-    //Emitted when owner `enableMaxTransferAmount`
+    // Emitted when owner `enableMaxTransferAmount`
     event MaxTransferAmountEnabled(bool isEnabled);
 
-    //Emitted when owner `updateBlacklist`
+    // Emitted when owner `updateBlacklist`
     event BlacklistUpdated(address target, bool status);
 
-    //Emitted when owner `updateBlacklist`
+    // Emitted when owner `updateBlacklist`
     event WhitelistUpdated(address target, bool status);
 
-    //Emitted when owner `setMaxTransferPercentage`
+    // Emitted when owner `setMaxTransferPercentage`
     event MaxTransferPercentageChanged(uint256 maxTransferPercentage);
 
-    //Emitted when owner `setPercentageOfPurchaseTax`
+    // Emitted when owner `setPercentageOfPurchaseTax`
     event PurchaseTaxChanged(uint256 purchaseTax);
 
-    //Emitted when owner `setPercentageOfSalesTax`
+    // Emitted when owner `setPercentageOfSalesTax`
     event SalesTaxChanged(uint256 salesTax);
 
-    //Emitted when owner `addPoolAddress`
+    // Emitted when owner `addPoolAddress`
     event LiquidityPoolListAdded(address pool);
 
-    //Emitted when owner `mint`
+    // Emitted when owner `mint`
     event Minted(
         address indexed minter,
         address indexed recipient,
         uint256 amount
     );
 
+    /**
+     * @dev Initializes the contract with the provided parameters and sets the initial values
+     * The constructor sets up the token name and symbol, as well as the tax percentages for purchases and sales
+     * It also records the maximum transfer percentage that triggers automatic liquidity, and initializes the owner and whitelist
+     * @param _name The name of the token
+     * @param _symbol The symbol of the token
+     * @param _purchaseTaxPercent The tax percentage applied during token purchases
+     * @param _salesTaxPercent The tax percentage applied during token sales
+     * @param _maxTransferPercentage The percentage of the total supply that triggers automatic liquidity
+     *
+     * @notice The contract deployer and the contract itself are automatically added to the whitelist
+     */
     constructor(
         string memory _name,
         string memory _symbol,
@@ -92,8 +104,10 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         maxTransferPercentage = _maxTransferPercentage;
     }
 
+    // Fallback function to accept Ether transfers
     receive() external payable {}
 
+    // Modifier to ensure the contract is not paused, unless the addresses are whitelisted
     modifier checkContractPaused(address from, address to) {
         require(
             !paused() || whitelist[from] || whitelist[to],
@@ -102,6 +116,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         _;
     }
 
+    // Modifier to validate that a given percentage is within the allowed range
     modifier checkPercent(uint256 _percent) {
         require(_percent <= PERCENT_DIVIDER_DECIMALS, "Invalid percentage");
         _;
@@ -143,19 +158,20 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         return true;
     }
 
-    /** @notice Pause contract and lock transfer
+    /** @dev Pause contract and lock transfer
      */
     function pause() public onlyOwner {
         _pause();
     }
 
-    /** @notice Unpause contract and unlock transfer
+    /** @dev Unpause contract and unlock transfer
      */
     function unpause() public onlyOwner {
         _unpause();
     }
 
-    /** @notice Sets new tax percent for transfer
+    /**
+     * @dev Sets new tax percent for transfer
      * @param _salesTaxPercent new percent of tax for sale.
      */
     function setPercentageOfSalesTax(
@@ -166,7 +182,8 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         emit SalesTaxChanged(_salesTaxPercent);
     }
 
-    /** @notice Sets new tax percent for transfer
+    /**
+     *  @dev Sets new tax percent for transfer
      * @param _purchaseTaxPercent new percent of purchase tax.
      */
     function setPercentageOfPurchaseTax(
@@ -178,8 +195,8 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     /**
-     * @notice This function adds or remove an address to or from the blacklist
-     * @dev Only can be called by the Owner
+     * @dev This function adds or remove an address to or from the blacklist
+     * Only can be called by the Owner
      * @param _target Target address for blacklist
      * @param _status New status for address
      */
@@ -194,8 +211,8 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     /**
-     * @notice This function adds or remove an address to or from the whitelist
-     * @dev Only can be called by the Owner
+     * @dev This function adds or remove an address to or from the whitelist
+     * Only can be called by the Owner
      * @param _target Address which status changing
      * @param _status New status for address
      */
@@ -220,8 +237,8 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     /**
-     * @notice This function control max amount of token available for transfer functionality
-     * @dev Only can be called by the Owner
+     * @dev This function control max amount of token available for transfer functionality
+     * Only can be called by the Owner
      * @param _isEnabled bool which shown: is max transfer amount enabled
      */
     function enableMaxTransferAmount(bool _isEnabled) external onlyOwner {
@@ -231,8 +248,8 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     /**
-     * @notice This function sets new value for maxTransferPercentage
-     * @dev Only can be called by the Owner
+     * @dev This function sets new value for maxTransferPercentage
+     * Only can be called by the Owner
      * @param _value New value for maxTransferPercentage
      */
     function setMaxTransferPercentage(
@@ -255,7 +272,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         emit Minted(msg.sender, recipient, amount);
     }
 
-    /** @notice Withdraw amount of chosen tokens from contract.
+    /** @dev Withdraw amount of chosen tokens from contract.
      * @param _token Amount of tokens for withdraw.
      * @param _receiver Address of tokens receiver.
      * @param _amount Amount of tokens for withdraw.
@@ -270,9 +287,9 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         IERC20(_token).transfer(_receiver, _amount);
     }
 
-    /** @notice Withdraw amount of bnb from contract.
-     * @param _receiver Address of receiver.
-     * @param _amount Amount for withdraw.
+    /** @dev Withdraw amount of bnb from contract
+     * @param _receiver Address of receiver
+     * @param _amount Amount for withdraw
      */
     function withdrawBNB(
         address _receiver,
@@ -282,6 +299,14 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         payable(_receiver).transfer(_amount);
     }
 
+    /**
+     * @dev Validates if the addresses are not blacklisted, checks transfer conditions, and handles tax deduction before transferring the amount
+     * This function ensures that the transfer amount is greater than zero, and if the transfer is not from a whitelisted address,
+     * it calculates the applicable tax based on whether the transfer is a purchase or sale. It also ensures the transfer doesn't exceed the max allowed transfer amount
+     * @param _from The address sending the tokens
+     * @param _to The address receiving the tokens
+     * @param _amount The amount of tokens to transfer
+     */
     function checkWhitelistAndTransfer(
         address _from,
         address _to,
