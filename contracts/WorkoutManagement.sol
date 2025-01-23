@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./interfaces/IWorkoutManagement.sol";
 import "./interfaces/IVVFIT.sol";
 
 contract WorkoutManagement is
-    Pausable,
-    AccessControl,
-    ReentrancyGuard,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    EIP712Upgradeable,
+    UUPSUpgradeable,
     IWorkoutManagement
 {
     using SafeERC20 for IVVFIT;
+    using ECDSA for bytes32;
 
     string public constant CONTRACT_NAME = "Workout Management";
     string public constant CONTRACT_VERSION = "1.0.0";
@@ -34,35 +40,25 @@ contract WorkoutManagement is
 
     uint256 public eventCount;
     mapping(uint256 => WorkoutEvent) public events;
-    mapping(uint256 => mapping(address => bool)) public userParticipated; // User participation status
+    mapping(uint256 => bool) public usedSalt;
 
-    event EventCreated(
-        uint256 eventId,
-        address indexed instructor,
-        uint256 eventEndTime
-    );
-    event UserParticipated(
-        uint256 eventId,
-        address indexed user,
-        uint256 participationFee
-    );
-    event EventCompleted(uint256 eventId);
-    event EventCreationFeeUpdated(uint256 newFee);
-    event RewardRateUpdated(uint256 newInstructorRate, uint256 newBurningRate);
-    event EmergencyWithdraw(
-        address indexed admin,
-        uint256 amount,
-        address indexed recipient
-    );
+    bytes32 private constant CLAIM_TYPEHASH =
+        keccak256(
+            "Claim(uint256 eventId,address user,uint256 totalScores,uint256 score, uint256 salt)"
+        );
 
-    constructor(
+    function initialize(
         address _vvfitAddress,
         address _workoutTreasury,
         uint256 _eventCreationFee
-    ) {
+    ) public initializer {
         if (_vvfitAddress == address(0)) {
             revert ZeroAddress();
         }
+        __Pausable_init();
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __EIP712_init(CONTRACT_NAME, CONTRACT_VERSION);
         vvfitToken = IVVFIT(_vvfitAddress);
         workoutTreasury = _workoutTreasury;
         eventCreationFee = _eventCreationFee;
@@ -72,6 +68,16 @@ contract WorkoutManagement is
     modifier eventExists(uint256 _eventId) {
         if (_eventId >= eventCount) {
             revert EventDoesNotExist(_eventId);
+        }
+        _;
+    }
+
+    modifier eventHasCompleted(uint256 _eventId) {
+        if (events[_eventId].eventEndTime > block.timestamp) {
+            revert EventNotCompleted(
+                events[_eventId].eventEndTime,
+                block.timestamp
+            );
         }
         _;
     }
@@ -144,11 +150,11 @@ contract WorkoutManagement is
             revert EventNotStart(workoutEvent.eventStartTime, block.timestamp);
         }
         // Check event hasn't ended
-        if (workoutEvent.eventEndTime < block.timestamp) {
+        if (workoutEvent.eventEndTime <= block.timestamp) {
             revert EventHasEnded(workoutEvent.eventEndTime, block.timestamp);
         }
         // Check if user already participated
-        if (userParticipated[eventId][msg.sender]) {
+        if (workoutEvent.hasParticipated[msg.sender]) {
             revert AlreadyParticipated(msg.sender);
         }
 
@@ -168,12 +174,11 @@ contract WorkoutManagement is
 
         vvfitToken.burn(burnAmount);
 
-        vvfitToken.transfer(workoutEvent.instructor, instructorLoyalty);
-
+        workoutEvent.instructorFee += instructorLoyalty;
         workoutEvent.rewardPool += rewardPoolAmount;
 
         // Add user to the participants list
-        userParticipated[eventId][msg.sender] = true;
+        workoutEvent.hasParticipated[msg.sender] = true;
         workoutEvent.participants++;
 
         emit UserParticipated(
@@ -185,11 +190,78 @@ contract WorkoutManagement is
 
     function instructorClaimFee(
         uint256 eventId
-    ) external onlyRole(INSTRUCTOR_ROLE) whenNotPaused nonReentrant {}
+    )
+        external
+        onlyRole(INSTRUCTOR_ROLE)
+        whenNotPaused
+        nonReentrant
+        eventHasCompleted(eventId)
+    {
+        WorkoutEvent storage workoutEvent = events[eventId];
+
+        // Verify caller is the event instructor
+        if (workoutEvent.instructor != msg.sender) {
+            revert NotEventInstructor(msg.sender, workoutEvent.instructor);
+        }
+
+        // Prevent multiple claims
+        if (workoutEvent.instructorFeeClaimed) {
+            revert FeesAlreadyClaimed(eventId, msg.sender);
+        }
+
+        uint256 feeAmount = workoutEvent.instructorFee;
+
+        // Mark fees as claimed
+        workoutEvent.instructorFeeClaimed = true;
+
+        // Transfer fees to instructor
+        vvfitToken.transfer(msg.sender, feeAmount);
+
+        emit InstructorFeesClaimed(eventId, msg.sender, feeAmount);
+    }
 
     function topParticipantsClaimReward(
-        uint256 eventId
-    ) external whenNotPaused nonReentrant {}
+        uint256 eventId,
+        uint256 totalScores,
+        uint256 userScore,
+        uint256 salt,
+        bytes memory signature
+    ) external whenNotPaused nonReentrant eventHasCompleted(eventId) {
+        if (events[eventId].hasClaimed[msg.sender])
+            revert RewardAlreadyClaimed(eventId, msg.sender);
+
+        // Verify the signature
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    CLAIM_TYPEHASH,
+                    eventId,
+                    msg.sender,
+                    totalScores,
+                    userScore,
+                    salt
+                )
+            )
+        );
+
+        address signer = digest.recover(signature);
+
+        _checkRole(OPERATOR_ROLE, signer);
+
+        // Mark as claimed
+        events[eventId].hasClaimed[msg.sender] = true;
+        usedSalt[salt] = true;
+        // Calculate reward based on user score
+        uint256 reward = calculateReward(eventId, totalScores, userScore);
+
+        // Update pool reward count
+        events[eventId].claimedReward += reward;
+
+        // Transfer reward
+        vvfitToken.transfer(msg.sender, reward);
+
+        emit TopParticipantsClaimed(eventId, msg.sender, reward);
+    }
 
     function setEventCreationFee(
         uint256 _newCreationFee
@@ -210,6 +282,27 @@ contract WorkoutManagement is
         emit RewardRateUpdated(_instructorRate, _burningRate);
     }
 
+    function calculateReward(
+        uint256 eventId,
+        uint256 totalScores,
+        uint256 userScore
+    ) private view returns (uint256) {
+        if (totalScores == 0 || userScore == 0) {
+            revert ZeroAmount();
+        }
+
+        uint256 totalReward = events[eventId].rewardPool;
+
+        // Calculate user's share based on their proportion of total winner scores
+        uint256 userRewardShare = (userScore * totalReward) / totalScores;
+
+        if (userRewardShare + events[eventId].claimedReward > totalReward) {
+            revert InsufficientReward(userRewardShare, totalReward);
+        }
+
+        return userRewardShare;
+    }
+
     /**
      * @notice Allows an admin to withdraw tokens from the contract in case of an emergency.
      * @param amount The amount of tokens to withdraw.
@@ -219,16 +312,21 @@ contract WorkoutManagement is
         uint256 amount,
         address recipient
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(amount > 0, "Withdraw amount must be greater than zero");
+        if (amount == 0) revert ZeroAmount();
         if (recipient == address(0)) revert ZeroAddress();
 
         // Check the contract's token balance
         uint256 contractBalance = vvfitToken.balanceOf(address(this));
-        require(amount <= contractBalance, "Insufficient contract balance");
+        if (amount > contractBalance)
+            revert InsufficientBalance(amount, contractBalance);
 
         // Transfer the tokens to the recipient
         vvfitToken.transfer(recipient, amount);
 
         emit EmergencyWithdraw(msg.sender, amount, recipient);
     }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }
