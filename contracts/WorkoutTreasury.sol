@@ -48,7 +48,6 @@ contract WorkoutTreasury is
      */
     function initialize(address _vvfitAddress) public initializer {
         __Ownable_init(_msgSender());
-        __Ownable2Step_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         vvfitToken = IERC20(_vvfitAddress);
