@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.27;
 
 interface IWorkoutManagement {
     /**
@@ -16,8 +16,8 @@ interface IWorkoutManagement {
         uint256 eventEndTime; // End time of the event (timestamp)
         uint256 participants; // Total number of participants in the event
         uint256 claimedReward; // Total rewards that have been claimed by participants
-        mapping(address => bool) hasParticipated; // Mapping to track if a user has participated in the event
-        mapping(address => bool) hasClaimed; // Mapping to track if a user has claimed their reward
+        mapping(address participant => bool isParticipated) hasParticipated; // Mapping to track if a user has participated in the event
+        mapping(address instructor => bool isClaimed) hasClaimed; // Mapping to track if instructor has claimed their reward
     }
 
     // Event emitted when a new workout event is created
@@ -91,6 +91,6 @@ interface IWorkoutManagement {
     error RewardAlreadyClaimed(uint256 eventId, address user);
     // Error thrown when the reward pool is insufficient to cover a participant's reward
     error InsufficientReward(uint256 participantReward, uint256 rewardPool);
-// Error thrown when the provided salt value has already been used
+    // Error thrown when the provided salt value has already been used
     error SaltAlreadyUsed(uint256 salt);
 }

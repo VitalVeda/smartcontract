@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 contract WorkoutTreasury is
-    OwnableUpgradeable,
+    Ownable2StepUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
     UUPSUpgradeable
@@ -18,18 +18,25 @@ contract WorkoutTreasury is
 
     IERC20 public vvfitToken; // VVFIT token contract interface
 
+    // Emitted when tokens are withdrawn from the contract
     event TokenWithdrawn(
         address indexed token,
         address indexed to,
         uint256 amount
     );
-    event ETHReceived(address indexed from, uint256 amount);
 
-    // Custom Errors
+    // Emitted when the contract receives native currency
+    event NativeReceived(address indexed from, uint256 amount);
+
+    // Thrown when the provided token address is invalid
     error InvalidTokenAddress();
+    // Thrown when the recipient address is invalid (zero address)
     error InvalidRecipient();
+    // Thrown when the amount provided is zero.
     error ZeroAmount();
+    // Thrown when the requested amount exceeds the available balance
     error InsufficientBalance(uint256 requested, uint256 available);
+    // Thrown when a native token transfer fails
     error NativeTransferFailed();
 
     /**
@@ -41,6 +48,7 @@ contract WorkoutTreasury is
      */
     function initialize(address _vvfitAddress) public initializer {
         __Ownable_init(_msgSender());
+        __Ownable2Step_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         vvfitToken = IERC20(_vvfitAddress);
@@ -54,7 +62,7 @@ contract WorkoutTreasury is
     function withdrawToken(
         address to,
         uint256 amount
-    ) external onlyOwner whenNotPaused nonReentrant {
+    ) external onlyOwner nonReentrant whenNotPaused {
         if (to == address(0)) revert InvalidRecipient();
         if (amount == 0) revert ZeroAmount();
 
@@ -72,7 +80,7 @@ contract WorkoutTreasury is
         address token,
         address to,
         uint256 amount
-    ) external onlyOwner whenNotPaused nonReentrant {
+    ) external onlyOwner nonReentrant whenNotPaused {
         if (token == address(0)) revert InvalidTokenAddress();
         if (to == address(0)) revert InvalidRecipient();
         if (amount == 0) revert ZeroAmount();
@@ -101,7 +109,7 @@ contract WorkoutTreasury is
 
     /// @notice Support for receiving ETH
     receive() external payable {
-        emit ETHReceived(msg.sender, msg.value);
+        emit NativeReceived(msg.sender, msg.value);
     }
 
     /**
@@ -112,7 +120,7 @@ contract WorkoutTreasury is
     function withdrawNative(
         address payable to,
         uint256 amount
-    ) external onlyOwner whenNotPaused nonReentrant {
+    ) external onlyOwner nonReentrant whenNotPaused {
         if (to == address(0)) revert InvalidRecipient();
         if (amount > address(this).balance)
             revert InsufficientBalance(amount, address(this).balance);

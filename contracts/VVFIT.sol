@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
-contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
+contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     // Divider which used in `calculatePercent` function
     uint256 public constant PERCENT_DIVIDER_DECIMALS = 100_000;
 
@@ -36,22 +36,22 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     bool public maxTransferAmountEnabled = true;
 
     // blacklist[addressOfUser] = status
-    mapping(address => bool) public blacklist;
+    mapping(address blacklistAddress => bool status) public blacklist;
 
     // whitelist[addressOfUser] = status
-    mapping(address => bool) public whitelist;
+    mapping(address whitelistAddress => bool status) public whitelist;
 
     // list address of VVFIT pools on DEXs
-    mapping(address => bool) private _listPoolAddress;
+    mapping(address poolAddress => bool isAdded) private _listPoolAddress;
 
     // Emitted when owner `enableMaxTransferAmount`
     event MaxTransferAmountEnabled(bool isEnabled);
 
     // Emitted when owner `updateBlacklist`
-    event BlacklistUpdated(address target, bool status);
+    event BlacklistUpdated(address indexed target, bool status);
 
     // Emitted when owner `updateBlacklist`
-    event WhitelistUpdated(address target, bool status);
+    event WhitelistUpdated(address indexed target, bool status);
 
     // Emitted when owner `setMaxTransferPercentage`
     event MaxTransferPercentageChanged(uint256 maxTransferPercentage);
@@ -65,12 +65,32 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     // Emitted when owner `addPoolAddress`
     event LiquidityPoolListAdded(address pool);
 
+    // Emitted when owner `withdrawToken`
+    event WithdrawToken(
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
+
+    // Emitted when owner `withdrawNative`
+    event WithdrawNative(address indexed user, uint256 amount);
+
     // Emitted when owner `mint`
     event Minted(
         address indexed minter,
         address indexed recipient,
         uint256 amount
     );
+
+    // Emitted when contract receive native token
+    event NativeReceived(address indexed from, uint256 amount);
+
+    // Thrown when the recipient address is invalid (zero address)
+    error InvalidRecipient();
+    // Thrown when the requested amount exceeds the available balance
+    error InsufficientBalance(uint256 requested, uint256 available);
+    // Thrown when a native token transfer fails
+    error NativeTransferFailed();
 
     /**
      * @dev Initializes the contract with the provided parameters and sets the initial values
@@ -104,8 +124,10 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         maxTransferPercentage = _maxTransferPercentage;
     }
 
-    // Fallback function to accept Ether transfers
-    receive() external payable {}
+    // Fallback function to accept native transfers
+    receive() external payable {
+        emit NativeReceived(msg.sender, msg.value);
+    }
 
     // Modifier to ensure the contract is not paused, unless the addresses are whitelisted
     modifier checkContractPaused(address from, address to) {
@@ -131,7 +153,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         address _to,
         uint256 _amount
     ) public override checkContractPaused(msg.sender, _to) returns (bool) {
-        checkWhitelistAndTransfer(_msgSender(), _to, _amount);
+        _checkWhitelistAndTransfer(_msgSender(), _to, _amount);
 
         return true;
     }
@@ -150,7 +172,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         address _to,
         uint256 _amount
     ) public override checkContractPaused(_from, _to) returns (bool) {
-        checkWhitelistAndTransfer(_from, _to, _amount);
+        _checkWhitelistAndTransfer(_from, _to, _amount);
 
         address spender = _msgSender();
         _spendAllowance(_from, spender, _amount);
@@ -232,8 +254,10 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
      * Trading happens inside the pool is charged a small amount of fee
      */
     function addPoolAddress(address _pool) external onlyOwner {
-        require(isContract(_pool), "Wrong liquidity pool");
+        require(_isContract(_pool), "Wrong liquidity pool");
         _listPoolAddress[_pool] = true;
+
+        emit LiquidityPoolListAdded(_pool);
     }
 
     /**
@@ -285,18 +309,24 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         require(_receiver != address(0), "Invalid receiver address");
 
         IERC20(_token).transfer(_receiver, _amount);
+
+        emit WithdrawToken(_receiver, _token, _amount);
     }
 
-    /** @dev Withdraw amount of bnb from contract
+    /** @dev Withdraw amount of native token from contract
      * @param _receiver Address of receiver
      * @param _amount Amount for withdraw
      */
-    function withdrawBNB(
+    function withdrawNative(
         address _receiver,
         uint256 _amount
     ) external onlyOwner {
-        require(_receiver != address(0), "Invalid receiver address");
-        payable(_receiver).transfer(_amount);
+        if (_receiver == address(0)) revert InvalidRecipient();
+        if (_amount > address(this).balance)
+            revert InsufficientBalance(_amount, address(this).balance);
+
+        (bool success, ) = _receiver.call{value: _amount}("");
+        if (!success) revert NativeTransferFailed();
     }
 
     /**
@@ -307,7 +337,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
      * @param _to The address receiving the tokens
      * @param _amount The amount of tokens to transfer
      */
-    function checkWhitelistAndTransfer(
+    function _checkWhitelistAndTransfer(
         address _from,
         address _to,
         uint256 _amount
@@ -318,7 +348,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
         );
         require(_amount > 0, "Transfer amount must be greater than zero");
 
-        uint256 transferThreshold = calculatePercent(
+        uint256 transferThreshold = _calculatePercent(
             maxTransferPercentage,
             totalSupply()
         );
@@ -333,9 +363,9 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
             }
 
             if (_listPoolAddress[_to]) {
-                taxAmount = calculatePercent(salesTaxPercent, _amount);
+                taxAmount = _calculatePercent(salesTaxPercent, _amount);
             } else if (_listPoolAddress[_from]) {
-                taxAmount = calculatePercent(purchaseTaxPercent, _amount);
+                taxAmount = _calculatePercent(purchaseTaxPercent, _amount);
             }
 
             // Transfer tax amount
@@ -348,7 +378,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     // Calculate percentage
-    function calculatePercent(
+    function _calculatePercent(
         uint256 _percent,
         uint256 _price
     ) private pure returns (uint256) {
@@ -356,7 +386,7 @@ contract VVFIT is ERC20, Pausable, Ownable, ERC20Burnable {
     }
 
     // Check if provided address is a contract or not
-    function isContract(address _addr) private view returns (bool) {
+    function _isContract(address _addr) private view returns (bool) {
         uint32 size;
         assembly {
             size := extcodesize(_addr)

@@ -9,7 +9,7 @@ const apiKey = process.env.API_KEY;
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.28",
+    version: "0.8.27",
     settings: {
       optimizer: {
         enabled: true,

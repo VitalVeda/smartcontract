@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -36,11 +36,11 @@ contract WorkoutManagement is
     bytes32 public constant INSTRUCTOR_ROLE = keccak256("INSTRUCTOR_ROLE");
 
     // Fee required to create an event
-    uint256 eventCreationFee;
+    uint256 public eventCreationFee;
     // Percentage of the joining fee allocated to the instructor
-    uint256 instructorRate;
+    uint256 public instructorRate;
     // Percentage of the joining fee allocated to burning
-    uint256 burningRate;
+    uint256 public burningRate;
 
     // Address of the workout treasury contract that holds VVFIT from create event
     address public workoutTreasury;
@@ -50,15 +50,15 @@ contract WorkoutManagement is
     // Counter for the number of events created
     uint256 public eventCount;
     // Mapping of event IDs to WorkoutEvent details
-    mapping(uint256 => WorkoutEvent) public events;
+    mapping(uint256 eventId => WorkoutEvent workoutEvent) public events;
     // Mapping of event IDs to boolean values indicating if a salt has been used
-    mapping(uint256 => bool) public usedSalt;
+    mapping(uint256 salt => bool isUsed) public usedSalt;
 
     // The typehash for the Claim struct used in the claim process
     // It is used for verifying the integrity and authenticity of the claim data in a signed message
     bytes32 private constant CLAIM_TYPEHASH =
         keccak256(
-            "Claim(uint256 eventId,address user,uint256 totalScores,uint256 score, uint256 salt)"
+            "Claim(uint256 eventId,address user,uint256 rewardPercentage, uint256 salt)"
         );
 
     /**
@@ -128,6 +128,30 @@ contract WorkoutManagement is
     }
 
     /**
+     * @dev Function to check if an instructor has claim fee from specific event.
+     * @param _eventId The ID of the event to check.
+     * @return true if the instructor has claimed the fee of event, false otherwise.
+     */
+    function checkIsInstructorClaim(
+        uint256 _eventId,
+        address _instructor
+    ) external view returns (bool) {
+        return events[_eventId].hasClaimed[_instructor];
+    }
+
+    /**
+     * @dev Function to check if an user has participated in specific event.
+     * @param _eventId The ID of the event to check.
+     * @return true if the user has participated in the event, false otherwise.
+     */
+    function checkIsUserParticipated(
+        uint256 _eventId,
+        address _participant
+    ) external view returns (bool) {
+        return events[_eventId].hasParticipated[_participant];
+    }
+
+    /**
      * @notice Grants the operator role to a specified address.
      * @param _instructor The address to be granted the operator role.
      * @dev Reverts if `_instructor` is the zero address.
@@ -166,7 +190,7 @@ contract WorkoutManagement is
         uint256 _participationFee,
         uint256 _eventStartTime,
         uint256 _eventEndTime
-    ) external onlyRole(INSTRUCTOR_ROLE) whenNotPaused nonReentrant {
+    ) external onlyRole(INSTRUCTOR_ROLE) nonReentrant whenNotPaused {
         if (_participationFee == 0) {
             revert InvalidParticipationFee();
         }
@@ -204,7 +228,7 @@ contract WorkoutManagement is
      */
     function participateInEvent(
         uint256 eventId
-    ) external eventExists(eventId) whenNotPaused nonReentrant {
+    ) external eventExists(eventId) nonReentrant whenNotPaused {
         WorkoutEvent storage workoutEvent = events[eventId];
         // Check event hasn't started
         if (block.timestamp < workoutEvent.eventStartTime) {
@@ -259,8 +283,8 @@ contract WorkoutManagement is
     )
         external
         onlyRole(INSTRUCTOR_ROLE)
-        whenNotPaused
         nonReentrant
+        whenNotPaused
         eventHasCompleted(eventId)
     {
         WorkoutEvent storage workoutEvent = events[eventId];
@@ -287,22 +311,20 @@ contract WorkoutManagement is
     }
 
     /**
-     * @notice Allows top participants of a workout event to claim their rewards.
-     * @dev Verifies the signature of the claim and ensures the claim is valid and unique.
-     *      This function only applies to completed events.
-     * @param eventId The ID of the workout event for which the reward is being claimed.
-     * @param totalScores The total score of all participants in the event.
-     * @param userScore The score achieved by the caller in the event.
-     * @param salt A unique value to prevent replay attacks.
-     * @param signature A signed message verifying the claim details.
+     * @notice Allows top participants of a workout event to claim their rewards
+     * @dev Verifies the signature of the claim and ensures the claim is valid and unique
+     *      This function only applies to completed events
+     * @param eventId The ID of the workout event for which the reward is being claimed
+     * @param rewardPercentage The percentage of the total reward that should be claimed by participant
+     * @param salt A unique value to prevent replay attacks
+     * @param signature A signed message verifying the claim details
      */
     function topParticipantsClaimReward(
         uint256 eventId,
-        uint256 totalScores,
-        uint256 userScore,
+        uint256 rewardPercentage,
         uint256 salt,
         bytes memory signature
-    ) external whenNotPaused nonReentrant eventHasCompleted(eventId) {
+    ) external nonReentrant whenNotPaused eventHasCompleted(eventId) {
         WorkoutEvent storage workoutEvent = events[eventId];
         if (workoutEvent.hasClaimed[msg.sender])
             revert RewardAlreadyClaimed(eventId, msg.sender);
@@ -316,8 +338,7 @@ contract WorkoutManagement is
                     CLAIM_TYPEHASH,
                     eventId,
                     msg.sender,
-                    totalScores,
-                    userScore,
+                    rewardPercentage,
                     salt
                 )
             )
@@ -331,7 +352,7 @@ contract WorkoutManagement is
         workoutEvent.hasClaimed[msg.sender] = true;
         usedSalt[salt] = true;
         // Calculate reward based on user score
-        uint256 reward = calculateReward(eventId, totalScores, userScore);
+        uint256 reward = _calculateReward(eventId, rewardPercentage);
 
         // Update pool reward count
         workoutEvent.claimedReward += reward;
@@ -373,26 +394,24 @@ contract WorkoutManagement is
     }
 
     /**
-     * @dev Calculates the reward for a user based on their score in an event.
-     * @param eventId The ID of the event for which the reward is being calculated.
-     * @param totalScores The total score accumulated by all users in the event.
-     * @param userScore The score of the user for whom the reward is being calculated.
-     * @return uint256 The calculated reward for the user.
-     * @notice Reverts if `totalScores` or `userScore` are zero, or if the calculated reward exceeds the available pool.
+     * @dev Calculates the reward for a user based on their score in an event
+     * @param eventId The ID of the event for which the reward is being calculated
+     * @param rewardPercentage The percentage of the reward that is distributed to participant
+     * @return uint256 The calculated reward for the user
+     * @notice Reverts if `totalScores` or `userScore` are zero, or if the calculated reward exceeds the available pool
      */
-    function calculateReward(
+    function _calculateReward(
         uint256 eventId,
-        uint256 totalScores,
-        uint256 userScore
+        uint256 rewardPercentage
     ) private view returns (uint256) {
-        if (totalScores == 0 || userScore == 0) {
+        if (rewardPercentage == 0) {
             revert ZeroAmount();
         }
 
         uint256 totalReward = events[eventId].rewardPool;
 
         // Calculate user's share based on their proportion of total winner scores
-        uint256 userRewardShare = (userScore * totalReward) / totalScores;
+        uint256 userRewardShare = (totalReward * rewardPercentage) / RATE_DIVIDER;
 
         if (userRewardShare + events[eventId].claimedReward > totalReward) {
             revert InsufficientReward(userRewardShare, totalReward);
@@ -409,7 +428,7 @@ contract WorkoutManagement is
     function emergencyWithdraw(
         uint256 amount,
         address recipient
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (amount == 0) revert ZeroAmount();
         if (recipient == address(0)) revert ZeroAddress();
 
