@@ -172,10 +172,9 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         address _to,
         uint256 _amount
     ) public override checkContractPaused(_from, _to) returns (bool) {
-        _checkWhitelistAndTransfer(_from, _to, _amount);
-
         address spender = _msgSender();
         _spendAllowance(_from, spender, _amount);
+        _checkWhitelistAndTransfer(_from, _to, _amount);
 
         return true;
     }
