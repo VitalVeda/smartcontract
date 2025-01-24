@@ -91,6 +91,20 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     error InsufficientBalance(uint256 requested, uint256 available);
     // Thrown when a native token transfer fails
     error NativeTransferFailed();
+    // Thrown when a tax amount is exceed transfer amount
+    error InvalidTaxAmount(uint256 taxAmount);
+    // Thrown when the contract is paused, and the caller is not whitelisted
+    error ContractPaused();
+    // Thrown when the provided percentage exceeds the allowed range
+    error InvalidPercentage();
+    // Error thrown when the provided pool address is not a contract
+    error InvalidLiquidityPool();
+    // Error thrown when an address is blacklisted
+    error BlacklistedAddress(address account);
+    // Error thrown when the transfer amount is zero or negative
+    error InvalidTransferAmount();
+    // Error thrown when the transfer amount exceeds the maximum allowed
+    error TransferAmountExceedsMax(uint256 provided, uint256 maxAllowed);
 
     /**
      * @dev Initializes the contract with the provided parameters and sets the initial values
@@ -131,16 +145,17 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
 
     // Modifier to ensure the contract is not paused, unless the addresses are whitelisted
     modifier checkContractPaused(address from, address to) {
-        require(
-            !paused() || whitelist[from] || whitelist[to],
-            "Pausable: Contract paused"
-        );
+        if (paused() && !whitelist[from] && !whitelist[to]) {
+            revert ContractPaused();
+        }
         _;
     }
 
     // Modifier to validate that a given percentage is within the allowed range
     modifier checkPercent(uint256 _percent) {
-        require(_percent <= PERCENT_DIVIDER_DECIMALS, "Invalid percentage");
+        if (_percent > PERCENT_DIVIDER_DECIMALS) {
+            revert InvalidPercentage();
+        }
         _;
     }
 
@@ -253,7 +268,9 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
      * Trading happens inside the pool is charged a small amount of fee
      */
     function addPoolAddress(address _pool) external onlyOwner {
-        require(_isContract(_pool), "Wrong liquidity pool");
+        if (!_isContract(_pool)) {
+            revert InvalidLiquidityPool();
+        }
         _listPoolAddress[_pool] = true;
 
         emit LiquidityPoolListAdded(_pool);
@@ -305,7 +322,9 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         address _receiver,
         uint256 _amount
     ) external onlyOwner {
-        require(_receiver != address(0), "Invalid receiver address");
+        if (_receiver == address(0)) {
+            revert InvalidRecipient();
+        }
 
         IERC20(_token).transfer(_receiver, _amount);
 
@@ -341,11 +360,13 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         address _to,
         uint256 _amount
     ) private {
-        require(
-            ((!blacklist[_from] && !blacklist[_to]) || _from == owner()),
-            "Blacklisted address"
-        );
-        require(_amount > 0, "Transfer amount must be greater than zero");
+        if ((blacklist[_from] || blacklist[_to]) && _from != owner()) {
+            revert BlacklistedAddress(_from);
+        }
+
+        if (_amount == 0) {
+            revert InvalidTransferAmount();
+        }
 
         uint256 transferThreshold = _calculatePercent(
             maxTransferPercentage,
@@ -355,16 +376,19 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         uint256 taxAmount;
         if (!whitelist[_from] && !whitelist[_to]) {
             if (maxTransferAmountEnabled) {
-                require(
-                    _amount <= transferThreshold,
-                    "Transfer amount exceeds the maxTxAmount."
-                );
+                if (_amount > transferThreshold) {
+                    revert TransferAmountExceedsMax(_amount, transferThreshold);
+                }
             }
 
             if (_listPoolAddress[_to]) {
                 taxAmount = _calculatePercent(salesTaxPercent, _amount);
             } else if (_listPoolAddress[_from]) {
                 taxAmount = _calculatePercent(purchaseTaxPercent, _amount);
+            }
+
+            if (taxAmount > _amount) {
+                revert InvalidTaxAmount(taxAmount);
             }
 
             // Transfer tax amount
