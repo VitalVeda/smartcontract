@@ -10,8 +10,8 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     // Divider which used in `calculatePercent` function
     uint256 public constant PERCENT_DIVIDER_DECIMALS = 100_000;
 
-    // VVFIT has maximum total supply of 176 million tokens
-    uint256 public constant MAXIMUM_TOTAL_SUPPLY = 17600000000;
+    // VVFIT has maximum total supply of 17,6 billion tokens
+    uint256 public constant MAXIMUM_TOTAL_SUPPLY = 17600000000 * 1e18;
 
     /**
      * @dev Percent of tax calculation
@@ -105,6 +105,8 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     error InvalidTransferAmount();
     // Error thrown when the transfer amount exceeds the maximum allowed
     error TransferAmountExceedsMax(uint256 provided, uint256 maxAllowed);
+    // Error thrown when the minted amount exceeds the maximum caps
+    error ExceedsMaximumSupply(uint256 requested, uint256 available);
 
     /**
      * @dev Initializes the contract with the provided parameters and sets the initial values
@@ -307,6 +309,12 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
      * @param recipient minted token recipient address.
      */
     function mint(address recipient, uint256 amount) external onlyOwner {
+        if (totalSupply() + amount > MAXIMUM_TOTAL_SUPPLY) {
+            revert ExceedsMaximumSupply(
+                amount,
+                MAXIMUM_TOTAL_SUPPLY - totalSupply()
+            );
+        }
         _mint(recipient, amount);
 
         emit Minted(msg.sender, recipient, amount);
