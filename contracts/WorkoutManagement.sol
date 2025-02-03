@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.27;
+pragma solidity 0.8.23;
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -411,7 +411,8 @@ contract WorkoutManagement is
         uint256 totalReward = events[eventId].rewardPool;
 
         // Calculate user's share based on their proportion of total winner scores
-        uint256 userRewardShare = (totalReward * rewardPercentage) / RATE_DIVIDER;
+        uint256 userRewardShare = (totalReward * rewardPercentage) /
+            RATE_DIVIDER;
 
         if (userRewardShare + events[eventId].claimedReward > totalReward) {
             revert InsufficientReward(userRewardShare, totalReward);
