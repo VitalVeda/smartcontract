@@ -2,14 +2,14 @@ import { AddressLike } from "ethers";
 import fs from "fs";
 import path from "path";
 
-function getContracts(network: string | number) {
+export function getContracts(network: string | number) {
   let json;
   try {
     const env = process.env.NODE_ENV;
     json = fs.readFileSync(
       path.join(
         __dirname,
-        `../deployed-contract/${env}.${network}.contract-addresses.json`
+        `../deployed-contracts/${env}.${network}.contract-addresses.json`
       )
     );
   } catch (err) {
@@ -19,7 +19,7 @@ function getContracts(network: string | number) {
   return addresses;
 }
 
-function saveContract(
+export function saveContract(
   network: string | number,
   contract: string,
   address: AddressLike
@@ -32,13 +32,8 @@ function saveContract(
   fs.writeFileSync(
     path.join(
       __dirname,
-      `../deployed-contract/${env}.${network}.contract-addresses.json`
+      `../deployed-contracts/${env}.${network}.contract-addresses.json`
     ),
     JSON.stringify(addresses, null, "    ")
   );
 }
-
-module.exports = {
-  getContracts,
-  saveContract,
-};

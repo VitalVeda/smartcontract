@@ -111,12 +111,12 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     /**
      * @dev Initializes the contract with the provided parameters and sets the initial values
      * The constructor sets up the token name and symbol, as well as the tax percentages for purchases and sales
-     * It also records the maximum transfer percentage that triggers automatic liquidity, and initializes the owner and whitelist
+     * It also records the maximum transfer percentage for each transfer, and initializes the owner and whitelist
      * @param _name The name of the token
      * @param _symbol The symbol of the token
      * @param _purchaseTaxPercent The tax percentage applied during token purchases
      * @param _salesTaxPercent The tax percentage applied during token sales
-     * @param _maxTransferPercentage The percentage of the total supply that triggers automatic liquidity
+     * @param _maxTransferPercentage The percentage of the total supply that used to calculate maximum transfer amount each transaction
      *
      * @notice The contract deployer and the contract itself are automatically added to the whitelist
      */

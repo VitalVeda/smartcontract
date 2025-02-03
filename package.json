@@ -5,9 +5,11 @@
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
     "deploy:dev_tbsc": "NODE_ENV=dev hardhat run --network tbsc",
-    "deploy:dev_apothem": "NODE_ENV=dev hardhat run --network apothem",
+    "deploy:dev_apothem": "NODE_ENV=dev hardhat run --network xdc_apothem",
+    "deploy:xdc": "NODE_ENV=dev hardhat run --network xdc",
     "verify:dev_tbsc": "NODE_ENV=dev hardhat verify --network tbsc",
-    "verify:dev_apothem": "NODE_ENV=dev hardhat verify --network apothem"
+    "verify:dev_apothem": "NODE_ENV=dev hardhat verify --network xdc_apothem",
+    "verify:xdc": "NODE_ENV=dev hardhat verify --network xdc"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
@@ -17,6 +19,7 @@
     "hardhat": "^2.22.18"
   },
   "dependencies": {
+    "@openzeppelin/hardhat-upgrades": "^3.9.0",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "hardhat-contract-sizer": "^2.10.0"

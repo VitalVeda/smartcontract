@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
+import "@openzeppelin/hardhat-upgrades";
 import "hardhat-contract-sizer";
 import "dotenv/config";
 
@@ -26,6 +27,11 @@ const config: HardhatUserConfig = {
         url: "https://rpc.apothem.network",
       },
     },
+    xdc: {
+      url: "https://erpc.xinfin.network",
+      chainId: 50,
+      accounts: [privateKey],
+    },
     xdc_apothem: {
       url: "https://rpc.apothem.network",
       chainId: 51,
@@ -39,11 +45,24 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey,
+    customChains: [
+      {
+        network: "xdc_apothem",
+        chainId: 51,
+        urls: {
+          apiURL: "https://rpc.apothem.network",
+          browserURL: "https://apothem.xdcscan.io/",
+        },
+      },
+    ],
   },
   contractSizer: {
     alphaSort: true,
     runOnCompile: true,
     disambiguatePaths: false,
+  },
+  sourcify: {
+    enabled: true,
   },
 };
 
