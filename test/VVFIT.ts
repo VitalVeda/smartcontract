@@ -1,11 +1,24 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { AddressLike, Signer } from "ethers";
-import { VVFIT } from "../typechain-types";
+import { AddressLike, parseEther, Signer } from "ethers";
+import {
+  INonfungiblePositionManager,
+  ISwapRouter,
+  VVFIT,
+  ISwapFactory,
+} from "../typechain-types";
+import { IWETH } from "typechain-types/contracts/interfaces/IWETH";
+import bn from "bignumber.js";
+
+bn.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 describe("VVFIT Contract", function () {
   let VVFIT;
   let vvfit: VVFIT;
+  let nonfungiblePositionManager: INonfungiblePositionManager;
+  let weth: IWETH;
+  let swapRouter: ISwapRouter;
+  let swapFactory: ISwapFactory;
   let owner: Signer, addr1: Signer, addr2: Signer, addr3: Signer;
 
   let vvfitAddress: AddressLike,
@@ -14,14 +27,43 @@ describe("VVFIT Contract", function () {
     addr2Address: AddressLike,
     addr3Address: AddressLike;
 
-  beforeEach(async function () {
-    // Deploy the VVFIT contract
-    VVFIT = await ethers.getContractFactory("VVFIT");
+  const nonfungiblePositionManagerAddress =
+    "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"; // Uniswap v3 position manager
+  const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // WETH
+  const swapRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // Uniswap V3 swap router
+  const swapFactoryAddress = "0x1F98431c8aD98523631AE4a59f267346ea31F984"; // Uniswap V3 swap factory
+
+  before(async function () {
     [owner, addr1, addr2, addr3] = await ethers.getSigners();
     ownerAddress = await owner.getAddress();
     addr1Address = await addr1.getAddress();
     addr2Address = await addr2.getAddress();
     addr3Address = await addr3.getAddress();
+
+    weth = await ethers.getContractAt("IWETH", wethAddress, owner);
+
+    nonfungiblePositionManager = await ethers.getContractAt(
+      "INonfungiblePositionManager",
+      nonfungiblePositionManagerAddress,
+      owner
+    );
+
+    swapRouter = await ethers.getContractAt(
+      "ISwapRouter",
+      swapRouterAddress,
+      owner
+    );
+
+    swapFactory = await ethers.getContractAt(
+      "ISwapFactory",
+      swapFactoryAddress,
+      owner
+    );
+  });
+
+  beforeEach(async function () {
+    // Deploy the VVFIT contract
+    VVFIT = await ethers.getContractFactory("VVFIT");
     // Deploy the VVFIT contract with initial values
     vvfit = await VVFIT.deploy("VVFIT Token", "VVFIT", 10000, 10000, 50000);
     await vvfit.waitForDeployment();
@@ -88,7 +130,7 @@ describe("VVFIT Contract", function () {
 
       await expect(
         vvfit.connect(addr1).transfer(addr2Address, ethers.parseUnits("50", 18))
-      ).to.be.revertedWith("Blacklisted address");
+      ).to.be.revertedWithCustomError(vvfit, "BlacklistedAddress");
     });
   });
 
@@ -107,7 +149,7 @@ describe("VVFIT Contract", function () {
 
       await expect(
         vvfit.connect(addr1).transfer(addr1Address, ethers.parseUnits("50", 18))
-      ).to.be.revertedWith("Pausable: Contract paused");
+      ).to.be.revertedWithCustomError(vvfit, "ContractPaused");
     });
   });
 
@@ -130,4 +172,176 @@ describe("VVFIT Contract", function () {
         .withArgs(addr1Address);
     });
   });
+
+  describe("Trading fees", function () {
+    it("Should charge fee on buy token", async function () {
+      await initializePool({
+        vvfit,
+        weth,
+        nonfungiblePositionManager,
+        swapRouter,
+        swapFactory,
+        ownerAddress,
+        vvfitAddress,
+        wethAddress,
+        nonfungiblePositionManagerAddress,
+        swapRouterAddress,
+      });
+
+      expect(await vvfit.balanceOf(vvfitAddress)).to.equal(0);
+
+      // Buy token
+      await weth.connect(addr1).deposit({ value: parseEther("20") });
+      await weth.connect(addr1).approve(swapRouterAddress, parseEther("20"));
+
+      const swapParams = {
+        tokenIn: wethAddress,
+        tokenOut: vvfitAddress,
+        fee: 3000,
+        recipient: addr1Address,
+        deadline: Math.floor(Date.now() / 1000) + 60 * 24,
+        amountIn: parseEther("1"),
+        amountOutMinimum: 100,
+        sqrtPriceLimitX96: 0,
+      };
+      await swapRouter.connect(addr1).exactInputSingle(swapParams);
+
+      // Expect balance of vvfit token increase after swap with buy tax
+      expect(await vvfit.balanceOf(vvfitAddress)).to.gt(0);
+      console.log(
+        "Balance after swap (buy):",
+        await vvfit.balanceOf(vvfitAddress)
+      );
+    });
+
+    it("Should be revert with IIA error", async function () {
+      await initializePool({
+        vvfit,
+        weth,
+        nonfungiblePositionManager,
+        swapRouter,
+        swapFactory,
+        ownerAddress,
+        vvfitAddress,
+        wethAddress,
+        nonfungiblePositionManagerAddress,
+        swapRouterAddress,
+      });
+
+      expect(await vvfit.balanceOf(vvfitAddress)).to.equal(0);
+
+      // Mint token
+      await vvfit.mint(addr1Address, parseEther("20"));
+      await vvfit.connect(addr1).approve(swapRouterAddress, parseEther("20"));
+
+      const swapParams = {
+        tokenIn: vvfitAddress,
+        tokenOut: wethAddress,
+        fee: 3000,
+        recipient: addr1Address,
+        deadline: Math.floor(Date.now() / 1000) + 60 * 24,
+        amountIn: parseEther("1"),
+        amountOutMinimum: 100,
+        sqrtPriceLimitX96: 0,
+      };
+      await expect(
+        swapRouter.connect(addr1).exactInputSingle(swapParams)
+      ).to.be.revertedWith("IIA"); // Insufficient input amount for uniswap V3 not support fee on transfer token
+    });
+  });
 });
+
+async function initializePool({
+  vvfit,
+  weth,
+  nonfungiblePositionManager,
+  swapRouter,
+  swapFactory,
+  ownerAddress,
+  vvfitAddress,
+  wethAddress,
+  nonfungiblePositionManagerAddress,
+  swapRouterAddress,
+}: {
+  vvfit: VVFIT;
+  weth: IWETH;
+  nonfungiblePositionManager: INonfungiblePositionManager;
+  swapRouter: ISwapRouter;
+  swapFactory: ISwapFactory;
+  ownerAddress: AddressLike;
+  vvfitAddress: AddressLike;
+  wethAddress: AddressLike;
+  nonfungiblePositionManagerAddress: AddressLike;
+  swapRouterAddress: AddressLike;
+}) {
+  const MIN_TICK = -887272;
+  const MAX_TICK = 887272;
+  const TICK_SPACING = 60;
+
+  await vvfit.mint(ownerAddress, parseEther("1000"));
+  await vvfit.approve(nonfungiblePositionManagerAddress, parseEther("1000"));
+
+  await weth.deposit({ value: parseEther("20") });
+  await weth.approve(nonfungiblePositionManagerAddress, parseEther("20"));
+
+  const token0 = vvfitAddress < wethAddress ? vvfitAddress : wethAddress;
+  const token1 = vvfitAddress < wethAddress ? wethAddress : vvfitAddress;
+
+  const sqrtPriceX96 = BigInt(
+    new bn("1") // reserve token 1
+      .div("1") // reserve token 0
+      .sqrt()
+      .multipliedBy(new bn(2).pow(96))
+      .integerValue(3)
+      .toString()
+  );
+
+  await nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+    token0,
+    token1,
+    BigInt(3000),
+    sqrtPriceX96
+  );
+
+  // 24 hours from now
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 24;
+
+  const params = {
+    token0: token0,
+    token1: token1,
+    fee: 3000,
+    tickLower: Math.ceil(MIN_TICK / TICK_SPACING) * TICK_SPACING,
+    tickUpper: Math.floor(MAX_TICK / TICK_SPACING) * TICK_SPACING,
+    amount0Desired: parseEther("10"),
+    amount1Desired: parseEther("10"),
+    amount0Min: 0,
+    amount1Min: 0,
+    recipient: ownerAddress,
+    deadline: deadline,
+  };
+
+  await nonfungiblePositionManager.mint(params);
+
+  await vvfit.approve(swapRouterAddress, parseEther("200"));
+
+  await weth.approve(swapRouterAddress, parseEther("20"));
+
+  // Test swap
+  const swapParams = {
+    tokenIn: token0,
+    tokenOut: token1,
+    fee: 3000,
+    recipient: ownerAddress,
+    deadline: deadline,
+    amountIn: parseEther("1"),
+    amountOutMinimum: 100,
+    sqrtPriceLimitX96: 0,
+  };
+  await swapRouter.exactInputSingle(swapParams);
+
+  const poolAddress = await swapFactory.getPool(token0, token1, 3000);
+
+  await vvfit.addPoolAddress(poolAddress);
+
+  console.log("Initialize succeeded");
+}

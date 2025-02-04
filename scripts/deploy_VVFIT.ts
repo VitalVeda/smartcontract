@@ -9,7 +9,7 @@ async function main() {
 
   const VVFIT = await hre.ethers.getContractFactory("VVFIT");
   const vvfitToken = await VVFIT.deploy(
-    "VVFIT Token",
+    "VitalVEDA",
     "VVFIT",
     10_000, // 10% sale tax
     10_000, // 10% buy tax
@@ -24,7 +24,7 @@ async function main() {
   console.log(
     await hre.run("verify:verify", {
       address: vvfitTokenAddress,
-      constructorArguments: ["VVFIT Token", "VVFIT", 10_000, 10_000, 50_000],
+      constructorArguments: ["VitalVEDA", "VVFIT", 10_000, 10_000, 50_000],
     })
   );
 

@@ -24,7 +24,7 @@ const config: HardhatUserConfig = {
       blockGasLimit: 0x1fffffffffffff,
       allowUnlimitedContractSize: true,
       forking: {
-        url: "https://rpc.apothem.network",
+        url: "https://eth.llamarpc.com", // forking ethereum mainnet
       },
     },
     xdc: {
