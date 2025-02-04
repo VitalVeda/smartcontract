@@ -4,12 +4,12 @@
   "scripts": {
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
-    "deploy:dev_tbsc": "NODE_ENV=dev hardhat run --network tbsc",
-    "deploy:dev_apothem": "NODE_ENV=dev hardhat run --network xdc_apothem",
-    "deploy:xdc": "NODE_ENV=dev hardhat run --network xdc",
+    "run:dev_tbsc": "NODE_ENV=dev hardhat run --network tbsc",
+    "run:dev_apothem": "NODE_ENV=dev hardhat run --network xdc_apothem",
+    "run:xdc": "NODE_ENV=prod hardhat run --network xdc",
     "verify:dev_tbsc": "NODE_ENV=dev hardhat verify --network tbsc",
     "verify:dev_apothem": "NODE_ENV=dev hardhat verify --network xdc_apothem",
-    "verify:xdc": "NODE_ENV=dev hardhat verify --network xdc"
+    "verify:xdc": "NODE_ENV=prod hardhat verify --network xdc"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

@@ -1,18 +1,13 @@
 import hre from "hardhat";
-import { getContracts, saveContract } from "./utils";
-
-// const { ethers, upgrades } = hre;
+import { saveContract } from "./utils";
 
 async function main() {
   const network = hre.network.name;
-  //   const contracts = await getContracts(network)[network];
 
   const VVFIT = await hre.ethers.getContractFactory("VVFIT");
   const vvfitToken = await VVFIT.deploy(
     "VitalVEDA",
     "VVFIT",
-    10_000, // 10% sale tax
-    10_000, // 10% buy tax
     50_000 // Maximum transfer 50% total supply
   );
 
