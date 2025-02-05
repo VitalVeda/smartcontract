@@ -23,9 +23,6 @@ const config: HardhatUserConfig = {
       gas: 12000000,
       blockGasLimit: 0x1fffffffffffff,
       allowUnlimitedContractSize: true,
-      forking: {
-        url: "https://eth.llamarpc.com", // forking ethereum mainnet
-      },
     },
     xdc: {
       url: "https://erpc.xinfin.network",

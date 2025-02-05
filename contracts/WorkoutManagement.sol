@@ -24,7 +24,7 @@ contract WorkoutManagement is
     using ECDSA for bytes32;
 
     // Name of the contract (used for EIP-712 standard)
-    string public constant CONTRACT_NAME = "Workout Management";
+    string public constant CONTRACT_NAME = "WorkoutManagement";
     // Version of the contract (used for EIP-712 standard)
     string public constant CONTRACT_VERSION = "1.0.0";
     // Divider used to calculate percent for fee distribution
@@ -56,9 +56,9 @@ contract WorkoutManagement is
 
     // The typehash for the Claim struct used in the claim process
     // It is used for verifying the integrity and authenticity of the claim data in a signed message
-    bytes32 private constant CLAIM_TYPEHASH =
+    bytes32 public constant CLAIM_TYPEHASH =
         keccak256(
-            "Claim(uint256 eventId,address user,uint256 rewardPercentage, uint256 salt)"
+            "Claim(uint256 eventId,address user,uint256 rewardPercentage,uint256 salt)"
         );
 
     /**
@@ -66,13 +66,17 @@ contract WorkoutManagement is
      * @param _vvfitAddress The address of the VVFIT token contract.
      * @param _workoutTreasury The address of the workout treasury where fees are sent.
      * @param _eventCreationFee The fee required to create an event.
+     * @param _instructorRate The rate for instructors in the event.
+     * @param _burningRate The rate for burning tokens in the event.
      * @dev Grants the DEFAULT_ADMIN_ROLE to the deployer.
      * Reverts if the `_vvfitAddress` is the zero address.
      */
     function initialize(
         address _vvfitAddress,
         address _workoutTreasury,
-        uint256 _eventCreationFee
+        uint256 _eventCreationFee,
+        uint256 _instructorRate,
+        uint256 _burningRate
     ) public initializer {
         if (_vvfitAddress == address(0) || _workoutTreasury == address(0)) {
             revert ZeroAddress();
@@ -84,6 +88,8 @@ contract WorkoutManagement is
         vvfitToken = IVVFIT(_vvfitAddress);
         workoutTreasury = _workoutTreasury;
         eventCreationFee = _eventCreationFee;
+        instructorRate = _instructorRate;
+        burningRate = _burningRate;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -153,16 +159,16 @@ contract WorkoutManagement is
 
     /**
      * @notice Grants the operator role to a specified address.
-     * @param _instructor The address to be granted the operator role.
-     * @dev Reverts if `_instructor` is the zero address.
+     * @param _operator The address to be granted the operator role.
+     * @dev Reverts if `_operator` is the zero address.
      */
     function grantOperatorRole(
-        address _instructor
+        address _operator
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_instructor == address(0)) {
+        if (_operator == address(0)) {
             revert ZeroAddress();
         }
-        grantRole(OPERATOR_ROLE, _instructor);
+        grantRole(OPERATOR_ROLE, _operator);
     }
 
     /**

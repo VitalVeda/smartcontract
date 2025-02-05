@@ -4,6 +4,7 @@
   "scripts": {
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
+    "coverage": "npx hardhat coverage",
     "run:dev_tbsc": "NODE_ENV=dev hardhat run --network tbsc",
     "run:dev_apothem": "NODE_ENV=dev hardhat run --network xdc_apothem",
     "run:xdc": "NODE_ENV=prod hardhat run --network xdc",

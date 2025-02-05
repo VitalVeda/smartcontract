@@ -13,15 +13,17 @@ async function main() {
 
   await vvfitToken.waitForDeployment();
   const vvfitTokenAddress = await vvfitToken.getAddress();
-  saveContract(network, "vvfitToken", vvfitTokenAddress);
+  
   console.log("VVFIT Token deployed to:", vvfitTokenAddress);
 
-  console.log(
-    await hre.run("verify:verify", {
-      address: vvfitTokenAddress,
-      constructorArguments: ["VitalVEDA", "VVFIT", 10_000, 10_000, 50_000],
-    })
-  );
+  saveContract(network, "vvfitToken", vvfitTokenAddress);
+
+  // console.log(
+  //   await hre.run("verify:verify", {
+  //     address: vvfitTokenAddress,
+  //     constructorArguments: ["VitalVEDA", "VVFIT", 10_000, 10_000, 50_000],
+  //   })
+  // );
 
   console.log("Completed!");
 }

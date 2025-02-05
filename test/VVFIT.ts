@@ -2,9 +2,6 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { AddressLike, Signer } from "ethers";
 import { VVFIT } from "../typechain-types";
-import bn from "bignumber.js";
-
-bn.config({ EXPONENTIAL_AT: 999999, DECIMAL_PLACES: 40 });
 
 describe("VVFIT Contract", function () {
   let VVFIT;

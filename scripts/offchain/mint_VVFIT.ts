@@ -2,21 +2,18 @@ import hre from "hardhat";
 import { getContracts } from "../utils";
 import { parseEther } from "ethers";
 
-// const { upgrades } = hre;
-
 async function main() {
   const network = hre.network.name;
   const contracts = await getContracts(network)[network];
 
-  const mintAddress = "0x826Ab0e98A4bAe20B8d8C708Ec49E8956283B81F";
+  const mintAddress = "0xB9Edf2E3Cf8194B15EC9ee23ee30d0A8B9Ea7DC9";
 
   const vvfitToken = await hre.ethers.getContractAt(
     "VVFIT",
     contracts.vvfitToken
   );
 
-  //   await vvfitToken.mint(mintAddress, parseEther("100"));
-  console.log(await vvfitToken.balanceOf(contracts.vvfitToken));
+  await vvfitToken.mint(mintAddress, parseEther("1"));
 
   console.log("Mint success");
 
