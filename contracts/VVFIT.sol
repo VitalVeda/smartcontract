@@ -6,9 +6,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
-    using SafeERC20 for IERC20;
     // Divider which used in `calculatePercent` function
     uint256 public constant PERCENT_DIVIDER_DECIMALS = 100_000;
 
@@ -16,16 +14,22 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     uint256 public constant MAXIMUM_TOTAL_SUPPLY = 17600000000 * 1e18;
 
     /**
-     * @dev Maximum percentage of the token's total supply allowed per transfer
-     * In this case we can't use 100% because of solidity restrictions
+     * @dev Percent of tax calculation
+     * Tax is a percentage of the price, but in this case we can't use 100% because of solidity restrictions
      * We can use 100000 as representation of 100.
      * For example 30% is equal to the fraction 30/100,
      * We multiplied 100 by 1000 and multiply 30 by 1000 to keep the ratio
      * We end up with a fraction of 300/1000, which is equivalent to 30/100
-     * If you want set max transfer percent to 30%, you need set max transfer percent variable to 30000
-     * If you want set max transfer percent to 10%, you need set max transfer percent varible to 10000
+     * If you want set tax to 30%, you need set tax variable to 30000
+     * If you want set tax to 10%, you need set tax varible to 10000
      * This apply the same for percentage calculation in this contract
      */
+    uint256 public purchaseTaxPercent;
+
+    // Percent of tax taken on token sales
+    uint256 public salesTaxPercent;
+
+    // Maximum percentage of the token's total supply allowed per transfer
     uint256 public maxTransferPercentage;
 
     // Shown Is max transfer amount functionality enabled;
@@ -51,6 +55,12 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
 
     // Emitted when owner `setMaxTransferPercentage`
     event MaxTransferPercentageChanged(uint256 maxTransferPercentage);
+
+    // Emitted when owner `setPercentageOfPurchaseTax`
+    event PurchaseTaxChanged(uint256 purchaseTax);
+
+    // Emitted when owner `setPercentageOfSalesTax`
+    event SalesTaxChanged(uint256 salesTax);
 
     // Emitted when owner `addPoolAddress`
     event LiquidityPoolListAdded(address pool);
@@ -81,6 +91,8 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     error InsufficientBalance(uint256 requested, uint256 available);
     // Thrown when a native token transfer fails
     error NativeTransferFailed();
+    // Thrown when a tax amount is exceed transfer amount
+    error InvalidTaxAmount(uint256 taxAmount);
     // Thrown when the contract is paused, and the caller is not whitelisted
     error ContractPaused();
     // Thrown when the provided percentage exceeds the allowed range
@@ -98,10 +110,12 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
 
     /**
      * @dev Initializes the contract with the provided parameters and sets the initial values
-     * The constructor sets up the token name and symbol, as well as the maximum transfer percentage for each transfer
-     * It also initializes the owner and whitelist
+     * The constructor sets up the token name and symbol, as well as the tax percentages for purchases and sales
+     * It also records the maximum transfer percentage for each transfer, and initializes the owner and whitelist
      * @param _name The name of the token
      * @param _symbol The symbol of the token
+     * @param _purchaseTaxPercent The tax percentage applied during token purchases
+     * @param _salesTaxPercent The tax percentage applied during token sales
      * @param _maxTransferPercentage The percentage of the total supply that used to calculate maximum transfer amount each transaction
      *
      * @notice The contract deployer and the contract itself are automatically added to the whitelist
@@ -109,10 +123,18 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     constructor(
         string memory _name,
         string memory _symbol,
+        uint256 _purchaseTaxPercent,
+        uint256 _salesTaxPercent,
         uint256 _maxTransferPercentage
     ) ERC20(_name, _symbol) Ownable(msg.sender) {
         whitelist[_msgSender()] = true;
         whitelist[address(this)] = true;
+
+        //Recording tax percent for sale
+        salesTaxPercent = _salesTaxPercent;
+
+        //Recording tax percent for purchase
+        purchaseTaxPercent = _purchaseTaxPercent;
 
         //Record amount of tokens which trigger autoLiquidity
         maxTransferPercentage = _maxTransferPercentage;
@@ -148,9 +170,9 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         address _to,
         uint256 _amount
     ) public override checkContractPaused(msg.sender, _to) returns (bool) {
-        _checkWhitelistAndMaximumTransfer(_msgSender(), _to, _amount);
+        _checkWhitelistAndTransfer(_msgSender(), _to, _amount);
 
-        return super.transfer(_to, _amount);
+        return true;
     }
 
     /**
@@ -167,9 +189,11 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
         address _to,
         uint256 _amount
     ) public override checkContractPaused(_from, _to) returns (bool) {
-        _checkWhitelistAndMaximumTransfer(_from, _to, _amount);
+        address spender = _msgSender();
+        _spendAllowance(_from, spender, _amount);
+        _checkWhitelistAndTransfer(_from, _to, _amount);
 
-        return super.transferFrom(_from, _to, _amount);
+        return true;
     }
 
     /** @dev Pause contract and lock transfer
@@ -182,6 +206,30 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
      */
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @dev Sets new tax percent for transfer
+     * @param _salesTaxPercent new percent of tax for sale.
+     */
+    function setPercentageOfSalesTax(
+        uint256 _salesTaxPercent
+    ) external onlyOwner checkPercent(_salesTaxPercent) {
+        salesTaxPercent = _salesTaxPercent;
+
+        emit SalesTaxChanged(_salesTaxPercent);
+    }
+
+    /**
+     *  @dev Sets new tax percent for transfer
+     * @param _purchaseTaxPercent new percent of purchase tax.
+     */
+    function setPercentageOfPurchaseTax(
+        uint256 _purchaseTaxPercent
+    ) external onlyOwner checkPercent(purchaseTaxPercent) {
+        purchaseTaxPercent = _purchaseTaxPercent;
+
+        emit PurchaseTaxChanged(purchaseTaxPercent);
     }
 
     /**
@@ -248,7 +296,7 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
      */
     function setMaxTransferPercentage(
         uint256 _value
-    ) external onlyOwner checkPercent(_value) {
+    ) external onlyOwner checkPercent(purchaseTaxPercent) {
         maxTransferPercentage = _value;
 
         emit MaxTransferPercentageChanged(_value);
@@ -286,7 +334,7 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
             revert InvalidRecipient();
         }
 
-        IERC20(_token).safeTransfer(_receiver, _amount);
+        IERC20(_token).transfer(_receiver, _amount);
 
         emit WithdrawToken(_receiver, _token, _amount);
     }
@@ -308,18 +356,18 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     }
 
     /**
-     * @dev Validates if the addresses are not blacklisted, checks transfer conditions before transferring the amount
-     * This function ensures that the transfer amount is greater than zero, and if the transfer is not from a whitelisted address
-     * It also ensures the transfer doesn't exceed the max allowed transfer amount
+     * @dev Validates if the addresses are not blacklisted, checks transfer conditions, and handles tax deduction before transferring the amount
+     * This function ensures that the transfer amount is greater than zero, and if the transfer is not from a whitelisted address,
+     * it calculates the applicable tax based on whether the transfer is a purchase or sale. It also ensures the transfer doesn't exceed the max allowed transfer amount
      * @param _from The address sending the tokens
      * @param _to The address receiving the tokens
      * @param _amount The amount of tokens to transfer
      */
-    function _checkWhitelistAndMaximumTransfer(
+    function _checkWhitelistAndTransfer(
         address _from,
         address _to,
         uint256 _amount
-    ) private view {
+    ) private {
         if ((blacklist[_from] || blacklist[_to]) && _from != owner()) {
             revert BlacklistedAddress(_from);
         }
@@ -333,13 +381,31 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
             totalSupply()
         );
 
+        uint256 taxAmount;
         if (!whitelist[_from] && !whitelist[_to]) {
             if (maxTransferAmountEnabled) {
                 if (_amount > transferThreshold) {
                     revert TransferAmountExceedsMax(_amount, transferThreshold);
                 }
             }
+
+            if (_listPoolAddress[_to]) {
+                taxAmount = _calculatePercent(salesTaxPercent, _amount);
+            } else if (_listPoolAddress[_from]) {
+                taxAmount = _calculatePercent(purchaseTaxPercent, _amount);
+            }
+
+            if (taxAmount > _amount) {
+                revert InvalidTaxAmount(taxAmount);
+            }
+
+            // Transfer tax amount
+            if (taxAmount > 0) _transfer(_from, address(this), taxAmount);
         }
+
+        uint256 restAmount = _amount - taxAmount;
+        // Transfer the rest of amount to the recipient
+        _transfer(_from, _to, restAmount);
     }
 
     // Calculate percentage
