@@ -37,9 +37,6 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
     // whitelist[addressOfUser] = status
     mapping(address whitelistAddress => bool status) public whitelist;
 
-    // list address of VVFIT pools on DEXs
-    mapping(address poolAddress => bool isAdded) private _listPoolAddress;
-
     // Emitted when owner `enableMaxTransferAmount`
     event MaxTransferAmountEnabled(bool isEnabled);
 
@@ -51,9 +48,6 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
 
     // Emitted when owner `setMaxTransferPercentage`
     event MaxTransferPercentageChanged(uint256 maxTransferPercentage);
-
-    // Emitted when owner `addPoolAddress`
-    event LiquidityPoolListAdded(address pool);
 
     // Emitted when owner `withdrawToken`
     event WithdrawToken(
@@ -214,20 +208,6 @@ contract VVFIT is ERC20, Pausable, Ownable2Step, ERC20Burnable {
 
         emit WhitelistUpdated(_target, _status);
         return true;
-    }
-
-    /**
-     * @dev Add new address to pool list
-     * Only can be called by the Owner
-     * Trading happens inside the pool is charged a small amount of fee
-     */
-    function addPoolAddress(address _pool) external onlyOwner {
-        if (!_isContract(_pool)) {
-            revert InvalidLiquidityPool();
-        }
-        _listPoolAddress[_pool] = true;
-
-        emit LiquidityPoolListAdded(_pool);
     }
 
     /**
