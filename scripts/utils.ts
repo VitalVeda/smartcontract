@@ -29,11 +29,19 @@ export function saveContract(
   const addresses = getContracts(network);
   addresses[network] = addresses[network] || {};
   addresses[network][contract] = address;
-  fs.writeFileSync(
-    path.join(
-      __dirname,
-      `../deployed-contracts/${env}.${network}.contract-addresses.json`
-    ),
-    JSON.stringify(addresses, null, "    ")
+
+  const filePath = path.join(
+    __dirname,
+    `../deployed-contracts/${env}.${network}.contract-addresses.json`
   );
+
+  // Ensure the directory exists
+  const dirPath = path.dirname(filePath);
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+
+  fs.writeFileSync(filePath, JSON.stringify(addresses, null, "    "), {
+    flag: "w",
+  });
 }

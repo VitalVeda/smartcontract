@@ -6,14 +6,14 @@ async function main() {
   const network = hre.network.name;
   const contracts = await getContracts(network)[network];
 
-  const mintAddress = "0xB9Edf2E3Cf8194B15EC9ee23ee30d0A8B9Ea7DC9";
+  const mintAddress = "0x307be72563d40540F668C1102db33c12F4ff0782";
 
   const vvfitToken = await hre.ethers.getContractAt(
     "VVFIT",
     contracts.vvfitToken
   );
 
-  await vvfitToken.mint(mintAddress, parseEther("1"));
+  await vvfitToken.mint(mintAddress, parseEther("100"));
 
   console.log("Mint success");
 
