@@ -45,7 +45,7 @@ const config: HardhatUserConfig = {
     apiKey: {
       xdc: xdcApiKey,
       xdc_apothem: xdcApiKey,
-      tbsc: bscApiKey,
+      bscTestnet: bscApiKey,
     },
     customChains: [
       {

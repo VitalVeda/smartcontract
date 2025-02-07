@@ -210,11 +210,14 @@ contract WorkoutManagement is
         }
 
         // Transfer the creation fee to the contract
-        vvfitToken.safeTransferFrom(
-            msg.sender,
-            workoutTreasury,
-            eventCreationFee
-        );
+        if (eventCreationFee > 0) {
+            vvfitToken.safeTransferFrom(
+                msg.sender,
+                workoutTreasury,
+                eventCreationFee
+            );
+        }
+        
         uint256 eventId = eventCount;
         // Create the event
         WorkoutEvent storage newEvent = events[eventId];

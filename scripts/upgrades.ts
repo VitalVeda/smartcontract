@@ -1,7 +1,6 @@
 import hre from "hardhat";
 import { getContracts } from "./utils";
 import { ethers, upgrades } from "hardhat";
-import { parseEther } from "ethers";
 
 async function main() {
   const network = hre.network.name;
@@ -11,30 +10,20 @@ async function main() {
   const WorkoutTreasury = await ethers.getContractFactory("WorkoutTreasury");
   const workoutTreasury = await upgrades.upgradeProxy(
     contracts.workoutTreasury,
-    WorkoutTreasury,
-    { constructorArgs: [contracts.vvfitToken] }
+    WorkoutTreasury
   );
   await workoutTreasury.waitForDeployment();
   const workoutTreasuryAddress = await workoutTreasury.getAddress();
 
   console.log("WorkoutTreasury proxy:", workoutTreasuryAddress);
 
-  // Deploy WorkoutManagement contract
+  // Upgrade WorkoutManagement contract
   const WorkoutManagement = await ethers.getContractFactory(
     "WorkoutManagement"
   );
   const workoutManagement = await upgrades.upgradeProxy(
     contracts.workoutManagement,
-    WorkoutManagement,
-    {
-      constructorArgs: [
-        contracts.vvfitTokenAddress,
-        workoutTreasuryAddress,
-        parseEther("5"), // 5 VVFIT
-        30000, // instructor rate 30%
-        30000, // burning rate 30%
-      ],
-    }
+    WorkoutManagement
   );
   await workoutManagement.waitForDeployment();
   const workoutManagementAddress = await workoutManagement.getAddress();
@@ -45,7 +34,7 @@ async function main() {
   try {
     console.log(
       await hre.run("verify:verify", {
-        address: workoutTreasuryAddress,
+        address: contracts.workoutTreasury,
         constructorArguments: [],
       })
     );
@@ -56,7 +45,7 @@ async function main() {
   try {
     console.log(
       await hre.run("verify:verify", {
-        address: workoutManagementAddress,
+        address: contracts.workoutManagement,
         constructorArguments: [],
       })
     );
