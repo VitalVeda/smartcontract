@@ -6,11 +6,12 @@ import "hardhat-contract-sizer";
 import "dotenv/config";
 
 const privateKey = process.env.PRIVATE_KEY || "";
-const apiKey = process.env.API_KEY;
+const xdcApiKey = process.env.XDC_API_KEY || "";
+const bscApiKey = process.env.BSC_API_KEY || "";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.23",
+    version: "0.8.27",
     settings: {
       optimizer: {
         enabled: true,
@@ -41,14 +42,26 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey,
+    apiKey: {
+      xdc: xdcApiKey,
+      xdc_apothem: xdcApiKey,
+      tbsc: bscApiKey,
+    },
     customChains: [
       {
         network: "xdc_apothem",
         chainId: 51,
         urls: {
-          apiURL: "https://rpc.apothem.network",
-          browserURL: "https://apothem.xdcscan.io/",
+          apiURL: "https://api-testnet.xdcscan.com/api",
+          browserURL: "https://testnet.xdcscan.com/",
+        },
+      },
+      {
+        network: "xdc",
+        chainId: 50,
+        urls: {
+          apiURL: "https://api.xdcscan.com/api",
+          browserURL: "https://xdcscan.com/",
         },
       },
     ],
@@ -59,7 +72,7 @@ const config: HardhatUserConfig = {
     disambiguatePaths: false,
   },
   sourcify: {
-    enabled: true,
+    enabled: false,
   },
 };
 
