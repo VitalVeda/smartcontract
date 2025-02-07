@@ -13,7 +13,7 @@ async function main() {
     contracts.vvfitToken
   );
 
-  await vvfitToken.mint(mintAddress, parseEther("100"));
+  await vvfitToken.mint(mintAddress, parseEther("3"));
 
   console.log("Mint success");
 
