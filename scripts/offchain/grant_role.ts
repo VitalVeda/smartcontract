@@ -6,7 +6,7 @@ async function main() {
   const network = hre.network.name;
   const contracts = await getContracts(network)[network];
 
-  const newRoleAddress = "0x5148e3990341147Cc576585eC36026ef24c8f5D2";
+  const newRoleAddress = "0x307be72563d40540F668C1102db33c12F4ff0782";
 
   const workoutManagement = await hre.ethers.getContractAt(
     "WorkoutManagement",

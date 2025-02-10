@@ -90,6 +90,7 @@ describe("WorkoutManagement", function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp + 3600; // 1 hour from now
       const eventEndTime = eventStartTime + 7200; // 2 hours later
+      const eventId = 0;
 
       await vvfitToken
         .connect(instructor)
@@ -98,7 +99,7 @@ describe("WorkoutManagement", function () {
       await expect(
         workoutManagement
           .connect(instructor)
-          .createEvent(PARTICIPATION_FEE, eventStartTime, eventEndTime)
+          .createEvent(eventId, PARTICIPATION_FEE, eventStartTime, eventEndTime)
       )
         .to.emit(workoutManagement, "EventCreated")
         .withArgs(0, instructorAddress, eventEndTime);
@@ -114,11 +115,12 @@ describe("WorkoutManagement", function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp + 3600;
       const eventEndTime = eventStartTime + 7200;
+      const eventId = 1;
 
       await expect(
         workoutManagement
           .connect(instructor)
-          .createEvent(0, eventStartTime, eventEndTime)
+          .createEvent(eventId, 0, eventStartTime, eventEndTime)
       ).to.be.revertedWithCustomError(
         workoutManagement,
         "InvalidParticipationFee"
@@ -129,11 +131,12 @@ describe("WorkoutManagement", function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp - 3600;
       const eventEndTime = eventStartTime + 1800;
+      const eventId = 1;
 
       await expect(
         workoutManagement
           .connect(instructor)
-          .createEvent(PARTICIPATION_FEE, eventStartTime, eventEndTime)
+          .createEvent(eventId, PARTICIPATION_FEE, eventStartTime, eventEndTime)
       ).to.be.revertedWithCustomError(workoutManagement, "InvalidEventEndTime");
     });
   });
@@ -310,6 +313,7 @@ describe("WorkoutManagement", function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp + 3600; // 1 hour from now
       const eventEndTime = eventStartTime + 7200; // 2 hours later
+      const eventId = 1;
 
       await vvfitToken
         .connect(instructor)
@@ -317,7 +321,7 @@ describe("WorkoutManagement", function () {
 
       await workoutManagement
         .connect(instructor)
-        .createEvent(PARTICIPATION_FEE, eventStartTime, eventEndTime);
+        .createEvent(eventId, PARTICIPATION_FEE, eventStartTime, eventEndTime);
 
       await network.provider.send("evm_increaseTime", [7200]); // Increase 2 hours to simulate the event starting time
       await network.provider.send("evm_mine");
@@ -325,8 +329,6 @@ describe("WorkoutManagement", function () {
       await vvfitToken
         .connect(participant)
         .approve(workoutManagementAddress, PARTICIPATION_FEE);
-
-      const eventId = 1;
 
       await workoutManagement.connect(participant).participateInEvent(eventId);
 

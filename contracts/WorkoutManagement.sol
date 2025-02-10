@@ -95,13 +95,13 @@ contract WorkoutManagement is
 
     /**
      * @dev Modifier to check if the event with the specified ID exists.
-     * Reverts if the event does not exist (i.e., the event ID is greater than or equal to eventCount).
+     * Reverts if the event does not exist (i.e., the event instructor not exists).
      * @param _eventId The ID of the event to check.
      * @notice This modifier is used to ensure that the specified event exists before performing any actions on it.
      */
 
     modifier eventExists(uint256 _eventId) {
-        if (_eventId >= eventCount) {
+        if (events[_eventId].instructor == address(0)) {
             revert EventDoesNotExist(_eventId);
         }
         _;
@@ -187,12 +187,14 @@ contract WorkoutManagement is
 
     /**
      * @notice Creates a new workout event.
+     * @param _eventId The unique identifier for the event.
      * @param _participationFee The fee required to participate in the event.
      * @param _eventStartTime The start time of the event (in UNIX timestamp).
      * @param _eventEndTime The end time of the event (in UNIX timestamp).
      * @dev Reverts if `_participationFee` is zero, if the event times are invalid, or if the creation fee cannot be transferred.
      */
     function createEvent(
+        uint256 _eventId,
         uint256 _participationFee,
         uint256 _eventStartTime,
         uint256 _eventEndTime
@@ -217,17 +219,16 @@ contract WorkoutManagement is
                 eventCreationFee
             );
         }
-        
-        uint256 eventId = eventCount;
+
         // Create the event
-        WorkoutEvent storage newEvent = events[eventId];
+        WorkoutEvent storage newEvent = events[_eventId];
         newEvent.instructor = msg.sender;
         newEvent.participationFee = _participationFee;
         newEvent.eventStartTime = _eventStartTime;
         newEvent.eventEndTime = _eventEndTime;
         eventCount++;
 
-        emit EventCreated(eventId, msg.sender, _eventEndTime);
+        emit EventCreated(_eventId, msg.sender, _eventEndTime);
     }
 
     /**
