@@ -199,6 +199,10 @@ contract WorkoutManagement is
         uint256 _eventStartTime,
         uint256 _eventEndTime
     ) external onlyRole(INSTRUCTOR_ROLE) nonReentrant whenNotPaused {
+        if (events[_eventId].instructor != address(0)) {
+            revert EventAlreadyCreated(_eventId);
+        }
+
         if (_participationFee == 0) {
             revert InvalidParticipationFee();
         }

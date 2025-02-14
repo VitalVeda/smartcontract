@@ -11,12 +11,14 @@ async function main() {
     contracts.workoutManagement
   );
 
+  const eventId = 5;
   const participantFee = parseEther("1");
-  const eventStartTime = 1738828223;
-  const eventEndTime = 1738828523;
+  const eventStartTime = 1739503400;
+  const eventEndTime = 1739504300;
 
   // Create event required VVFIT, instructor need to have VVFIT and approve for workoutManagement contract first
   await workoutManagement.createEvent(
+    eventId,
     participantFee,
     eventStartTime,
     eventEndTime

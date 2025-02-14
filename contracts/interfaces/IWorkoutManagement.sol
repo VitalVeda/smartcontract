@@ -59,6 +59,8 @@ interface IWorkoutManagement {
     error InvalidFee(uint256 _fee);
     // Error thrown when an event does not exist
     error EventDoesNotExist(uint256 eventId);
+    // Error thrown when an event has already been created
+    error EventAlreadyCreated(uint256 eventId);
     // Error thrown when a zero address is encountered
     error ZeroAddress();
     // Error thrown when a value is zero
