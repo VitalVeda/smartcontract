@@ -31,6 +31,14 @@ async function main() {
   console.log("WorkoutTreasury deployed to:", workoutTreasuryAddress);
   saveContract(network, "workoutTreasury", workoutTreasuryAddress);
 
+  const currentWorkoutTreasuryImplAddress =
+    await upgrades.erc1967.getImplementationAddress(workoutTreasuryAddress);
+
+  console.log(
+    "Current WorkoutTreasury implementation address:",
+    currentWorkoutTreasuryImplAddress
+  );
+
   // Deploy WorkoutManagement contract
   const WorkoutManagement = await ethers.getContractFactory(
     "WorkoutManagement"
@@ -41,12 +49,22 @@ async function main() {
     parseEther("5"), // 5 VVFIT
     30000, // instructor rate 30%
     30000, // burning rate 30%
+    parseEther("3000"), // minimum fee to join a challenge is 3000 VVFIT
+    parseEther("5000"), // max fee to join a challenge is 5000 VVFIT
   ]);
   await workoutManagement.waitForDeployment();
   const workoutManagementAddress = await workoutManagement.getAddress();
 
   console.log("WorkoutManagement deployed to:", workoutManagementAddress);
   saveContract(network, "workoutManagement", workoutManagementAddress);
+
+  const currentWorkoutManagementImplAddress =
+    await upgrades.erc1967.getImplementationAddress(workoutManagementAddress);
+
+  console.log(
+    "Current WorkoutManagement implementation address:",
+    currentWorkoutManagementImplAddress
+  );
 
   // Verification
   console.log(

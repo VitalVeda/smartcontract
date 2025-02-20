@@ -54,6 +54,10 @@ contract WorkoutManagement is
     // Mapping of event IDs to boolean values indicating if a salt has been used
     mapping(uint256 salt => bool isUsed) public usedSalt;
 
+    // Fee range for participate in event
+    uint256 public minParticipationFee;
+    uint256 public maxParticipationFee;
+
     // The typehash for the Claim struct used in the claim process
     // It is used for verifying the integrity and authenticity of the claim data in a signed message
     bytes32 public constant CLAIM_TYPEHASH =
@@ -68,6 +72,8 @@ contract WorkoutManagement is
      * @param _eventCreationFee The fee required to create an event.
      * @param _instructorRate The rate for instructors in the event.
      * @param _burningRate The rate for burning tokens in the event.
+     * @param _minParticipationFee The minimum fee required.
+     * @param _maxParticipationFee The maximum fee required.
      * @dev Grants the DEFAULT_ADMIN_ROLE to the deployer.
      * Reverts if the `_vvfitAddress` is the zero address.
      */
@@ -76,7 +82,9 @@ contract WorkoutManagement is
         address _workoutTreasury,
         uint256 _eventCreationFee,
         uint256 _instructorRate,
-        uint256 _burningRate
+        uint256 _burningRate,
+        uint256 _minParticipationFee,
+        uint256 _maxParticipationFee
     ) public initializer {
         if (_vvfitAddress == address(0) || _workoutTreasury == address(0)) {
             revert ZeroAddress();
@@ -90,6 +98,8 @@ contract WorkoutManagement is
         eventCreationFee = _eventCreationFee;
         instructorRate = _instructorRate;
         burningRate = _burningRate;
+        minParticipationFee = _minParticipationFee;
+        maxParticipationFee = _maxParticipationFee;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -203,7 +213,11 @@ contract WorkoutManagement is
             revert EventAlreadyCreated(_eventId);
         }
 
-        if (_participationFee == 0) {
+        if (
+            _participationFee == 0 ||
+            _participationFee < minParticipationFee ||
+            _participationFee > maxParticipationFee
+        ) {
             revert InvalidParticipationFee();
         }
 
@@ -405,6 +419,40 @@ contract WorkoutManagement is
         instructorRate = _instructorRate;
         burningRate = _burningRate;
         emit RewardRateUpdated(_instructorRate, _burningRate);
+    }
+
+    /**
+     * @dev Sets the minimum and maximum participate fees for users.
+     * @param _minParticipationFee The minimum fee required to participate in a workout (in basis points).
+     */
+    function setMinParticipationFee(
+        uint256 _minParticipationFee
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 oldMinParticipationFee = minParticipationFee;
+        minParticipationFee = _minParticipationFee;
+        emit MinParticipationFeeUpdated(
+            oldMinParticipationFee,
+            _minParticipationFee
+        );
+    }
+
+    /**
+     * @dev Sets the maximum participate fees for users.
+     * @param _maxParticipationFee The maximum fee required to participate in a workout (in basis points).
+     * @dev Reverts if the maximum fee is less than the minimum fee.
+     */
+
+    function setMaxParticipationFee(
+        uint256 _maxParticipationFee
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_maxParticipationFee < minParticipationFee)
+            revert InvalidMaxParticipationFee(_maxParticipationFee);
+        uint256 oldMaxParticipationFee = maxParticipationFee;
+        maxParticipationFee = _maxParticipationFee;
+        emit MaxParticipationFeeUpdated(
+            oldMaxParticipationFee,
+            _maxParticipationFee
+        );
     }
 
     /**

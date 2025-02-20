@@ -54,6 +54,16 @@ interface IWorkoutManagement {
         uint256 amount,
         address indexed recipient
     );
+    // Event emitted when the minimum participation fee is updated
+    event MinParticipationFeeUpdated(
+        uint256 oldMinParticipationFee,
+        uint256 newMinParticipationFee
+    );
+    // Event emitted when the maximum participation fee is updated
+    event MaxParticipationFeeUpdated(
+        uint256 oldMaxParticipationFee,
+        uint256 newMaxParticipationFee
+    );
 
     // Error thrown when the fee is invalid
     error InvalidFee(uint256 _fee);
@@ -95,4 +105,6 @@ interface IWorkoutManagement {
     error InsufficientReward(uint256 participantReward, uint256 rewardPool);
     // Error thrown when the provided salt value has already been used
     error SaltAlreadyUsed(uint256 salt);
+    //
+    error InvalidMaxParticipationFee(uint256 maxParticipationFee);
 }

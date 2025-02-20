@@ -23,6 +23,8 @@ describe("WorkoutManagement", function () {
 
   const EVENT_CREATION_FEE = parseEther("10");
   const PARTICIPATION_FEE = parseEther("1");
+  const MIN_PARTICIPANT_FEE = parseEther("1");
+  const MAX_PARTICIPANT_FEE = parseEther("5");
   const CONTRACT_NAME = "WorkoutManagement";
   const CONTRACT_VERSION = "1.0.0";
 
@@ -58,6 +60,8 @@ describe("WorkoutManagement", function () {
       EVENT_CREATION_FEE,
       30000, // instructor rate 30%
       30000, // burning rate 30%
+      MIN_PARTICIPANT_FEE,
+      MAX_PARTICIPANT_FEE,
     ]);
     await workoutManagement.waitForDeployment();
     workoutManagementAddress = await workoutManagement.getAddress();
