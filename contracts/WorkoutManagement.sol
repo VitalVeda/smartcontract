@@ -196,6 +196,20 @@ contract WorkoutManagement is
     }
 
     /**
+     * @notice Grants the instructor role to a specified address by using operator role wallet.
+     * @param _instructor The address to be granted the instructor role.
+     * @dev Reverts if `_instructor` is the zero address.
+     */
+    function grantInstructorRoleByOperator(
+        address _instructor
+    ) external onlyRole(OPERATOR_ROLE) {
+        if (_instructor == address(0)) {
+            revert ZeroAddress();
+        }
+        _grantRole(INSTRUCTOR_ROLE, _instructor);
+    }
+
+    /**
      * @notice Creates a new workout event.
      * @param _eventId The unique identifier for the event.
      * @param _participationFee The fee required to participate in the event.
