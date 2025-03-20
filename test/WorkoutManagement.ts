@@ -115,16 +115,34 @@ describe("WorkoutManagement", function () {
       expect(event.eventEndTime).to.equal(eventEndTime);
     });
 
-    it("should revert if participation fee is zero", async function () {
+    it("should revert if participation fee is small than minimum", async function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp + 3600;
       const eventEndTime = eventStartTime + 7200;
       const eventId = 1;
+      const participationFee = 0;
 
       await expect(
         workoutManagement
           .connect(instructor)
-          .createEvent(eventId, 0, eventStartTime, eventEndTime)
+          .createEvent(eventId, participationFee, eventStartTime, eventEndTime)
+      ).to.be.revertedWithCustomError(
+        workoutManagement,
+        "InvalidParticipationFee"
+      );
+    });
+
+    it("should revert if participation fee is bigger than maximum", async function () {
+      const currentTimestamp = await getCurrentTimestamp();
+      const eventStartTime = currentTimestamp + 3600;
+      const eventEndTime = eventStartTime + 7200;
+      const eventId = 1;
+      const participationFee = 6;
+
+      await expect(
+        workoutManagement
+          .connect(instructor)
+          .createEvent(eventId, participationFee, eventStartTime, eventEndTime)
       ).to.be.revertedWithCustomError(
         workoutManagement,
         "InvalidParticipationFee"
@@ -218,6 +236,29 @@ describe("WorkoutManagement", function () {
       await expect(
         workoutManagement.connect(instructor).instructorClaimFee(eventId)
       ).to.be.revertedWithCustomError(workoutManagement, "FeesAlreadyClaimed");
+    });
+
+    it("should revert if no participants joined the event", async function () {
+      // Create a new event where no participant joins
+      const currentTimestamp = await getCurrentTimestamp();
+      const eventStartTime = currentTimestamp + 3600; // 1 hour from now
+      const eventEndTime = eventStartTime + 7200; // 2 hours later
+      const eventId = 1;
+
+      await vvfitToken
+        .connect(instructor)
+        .approve(workoutManagementAddress, EVENT_CREATION_FEE);
+
+      await workoutManagement
+        .connect(instructor)
+        .createEvent(eventId, PARTICIPATION_FEE, eventStartTime, eventEndTime);
+
+      await network.provider.send("evm_increaseTime", [10800]); // Move past event end time
+      await network.provider.send("evm_mine");
+
+      await expect(
+        workoutManagement.connect(instructor).instructorClaimFee(eventId)
+      ).to.be.reverted;
     });
   });
 
@@ -317,7 +358,7 @@ describe("WorkoutManagement", function () {
       const currentTimestamp = await getCurrentTimestamp();
       const eventStartTime = currentTimestamp + 3600; // 1 hour from now
       const eventEndTime = eventStartTime + 7200; // 2 hours later
-      const eventId = 1;
+      const eventId = 2;
 
       await vvfitToken
         .connect(instructor)
@@ -375,6 +416,66 @@ describe("WorkoutManagement", function () {
             signature
           )
       ).to.be.revertedWithCustomError(workoutManagement, "SaltAlreadyUsed");
+    });
+  });
+
+  describe("Event with participant fee is 0", function () {
+    it("should allow to create event with participant fee equal 0", async function () {
+      await workoutManagement.setMinParticipationFee(0);
+      // Create a new event where no participant joins
+      const currentTimestamp = await getCurrentTimestamp();
+      const eventStartTime = currentTimestamp + 3600; // 1 hour from now
+      const eventEndTime = eventStartTime + 7200; // 2 hours later
+      const eventId = 3;
+      const participantFee = 0;
+
+      await vvfitToken
+        .connect(instructor)
+        .approve(workoutManagementAddress, EVENT_CREATION_FEE);
+
+      await expect(
+        workoutManagement
+          .connect(instructor)
+          .createEvent(eventId, participantFee, eventStartTime, eventEndTime)
+      )
+        .to.emit(workoutManagement, "EventCreated")
+        .withArgs(3, instructorAddress, eventEndTime);
+    });
+
+    it("should allow a user to participate in an event with participant fee equal 0", async function () {
+      const eventId = 3;
+
+      await network.provider.send("evm_increaseTime", [3600]); // Increase 1 hour to simulate the event starting time
+      await network.provider.send("evm_mine");
+      // No need to approve since participate fee equal 0
+      expect(
+        await vvfitToken.allowance(participantAddress, workoutManagementAddress)
+      ).to.be.equal(BigInt(0));
+      await expect(
+        workoutManagement.connect(participant).participateInEvent(eventId)
+      )
+        .to.emit(workoutManagement, "UserParticipated")
+        .withArgs(eventId, participantAddress, 0);
+
+      const event = await workoutManagement.events(eventId);
+      expect(
+        await workoutManagement.checkIsUserParticipated(
+          eventId,
+          participantAddress
+        )
+      ).to.be.true;
+      expect(event.participants).to.equal(1);
+    });
+
+    it("should revert when instructor claim since participant fee is 0", async function () {
+      const eventId = 3;
+
+      await network.provider.send("evm_increaseTime", [7200]); // Move past event end time
+      await network.provider.send("evm_mine");
+
+      await expect(
+        workoutManagement.connect(instructor).instructorClaimFee(eventId)
+      ).to.be.reverted;
     });
   });
 

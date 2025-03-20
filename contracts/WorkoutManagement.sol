@@ -228,7 +228,6 @@ contract WorkoutManagement is
         }
 
         if (
-            _participationFee == 0 ||
             _participationFee < minParticipationFee ||
             _participationFee > maxParticipationFee
         ) {
@@ -285,24 +284,29 @@ contract WorkoutManagement is
             revert AlreadyParticipated(msg.sender);
         }
 
-        uint256 feeAmount = workoutEvent.participationFee;
-        // Calculate amounts
-        uint256 burnAmount = (feeAmount * burningRate) / RATE_DIVIDER;
-        uint256 instructorLoyalty = (feeAmount * instructorRate) / RATE_DIVIDER;
-        uint256 rewardPoolAmount = feeAmount - burnAmount - instructorLoyalty;
+        if (workoutEvent.participationFee > 0) {
+            uint256 feeAmount = workoutEvent.participationFee;
+            // Calculate amounts
+            uint256 burnAmount = (feeAmount * burningRate) / RATE_DIVIDER;
+            uint256 instructorLoyalty = (feeAmount * instructorRate) /
+                RATE_DIVIDER;
+            uint256 rewardPoolAmount = feeAmount -
+                burnAmount -
+                instructorLoyalty;
 
-        // Validate calculations
-        if (rewardPoolAmount > feeAmount) {
-            revert InvalidCalculation();
+            // Validate calculations
+            if (rewardPoolAmount > feeAmount) {
+                revert InvalidCalculation();
+            }
+
+            // Transfer the participation fee to the contract an distribute fees
+            vvfitToken.safeTransferFrom(msg.sender, address(this), feeAmount);
+
+            vvfitToken.burn(burnAmount);
+
+            workoutEvent.instructorFee += instructorLoyalty;
+            workoutEvent.rewardPool += rewardPoolAmount;
         }
-
-        // Transfer the participation fee to the contract an distribute fees
-        vvfitToken.safeTransferFrom(msg.sender, address(this), feeAmount);
-
-        vvfitToken.burn(burnAmount);
-
-        workoutEvent.instructorFee += instructorLoyalty;
-        workoutEvent.rewardPool += rewardPoolAmount;
 
         // Add user to the participants list
         workoutEvent.hasParticipated[msg.sender] = true;
