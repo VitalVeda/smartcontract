@@ -6,20 +6,18 @@ import { VVFIT } from "../typechain-types";
 describe("VVFIT Contract", function () {
   let VVFIT;
   let vvfit: VVFIT;
-  let owner: Signer, addr1: Signer, addr2: Signer, addr3: Signer;
+  let owner: Signer, addr1: Signer, addr2: Signer;
 
   let vvfitAddress: AddressLike,
     ownerAddress: AddressLike,
     addr1Address: AddressLike,
-    addr2Address: AddressLike,
-    addr3Address: AddressLike;
+    addr2Address: AddressLike;
 
   before(async function () {
-    [owner, addr1, addr2, addr3] = await ethers.getSigners();
+    [owner, addr1, addr2] = await ethers.getSigners();
     ownerAddress = await owner.getAddress();
     addr1Address = await addr1.getAddress();
     addr2Address = await addr2.getAddress();
-    addr3Address = await addr3.getAddress();
   });
 
   beforeEach(async function () {
