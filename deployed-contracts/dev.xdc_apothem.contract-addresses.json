@@ -2,6 +2,7 @@
     "xdc_apothem": {
         "vvfitToken": "0x183BB180BA131f671bc50990A152a54098ea9c25",
         "workoutTreasury": "0xD7bF1Cdb1940373Ee664B16930981964DD2697Ca",
-        "workoutManagement": "0x4A7828a699D43A4071E896A519C98E7EBB5C71e6"
+        "workoutManagement": "0x4A7828a699D43A4071E896A519C98E7EBB5C71e6",
+        "vvwinToken": "0xB075d67D8e9fA3817a832Be832e4D2FCbE81a88f"
     }
 }

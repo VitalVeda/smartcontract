@@ -11,7 +11,7 @@ contract VVWINToken is ERC20, AccessControl, Pausable {
     using SafeERC20 for IERC20;
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant WHITELIST_ROLE = keccak256("WHITELIST_ROLE");
-    uint256 public constant BASE_DENOMINATOR = 10_000;
+    uint256 public constant BASE_DENOMINATOR = 10 ** 8;
     address public vvfitToken;
     uint256 public conversionRate;
     uint256 public conversionThreshold;

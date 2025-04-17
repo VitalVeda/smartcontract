@@ -4,7 +4,7 @@ import { AddressLike, Signer } from "ethers";
 import { VVFIT, VVWINToken } from "../typechain-types";
 
 // Constants
-const BASE_DENOMINATOR = 10_000;
+const BASE_DENOMINATOR = 10 ** 8;
 
 // Deploy contract fixture
 async function deployFixture() {
