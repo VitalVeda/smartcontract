@@ -9,11 +9,11 @@ export default async function main() {
   // Deploy VVWIN contract
   const VVWIN = await ethers.getContractFactory("VVWINToken");
   const vvwinToken = await VVWIN.deploy(
-    "VVWINToken",
+    "VVWIN",
     "VVWIN",
     contracts.vvfitToken,
     5000, // conversion rate (20_000 VVWIN = 1 VVFIT), divided by denom 10^8, calculated by formula: 1 VVWIN = (input / 10^8) VVFIT
-    ethers.parseEther("10") // conversion threshold
+    ethers.parseEther("100000") // conversion threshold
   );
 
   await vvwinToken.waitForDeployment();

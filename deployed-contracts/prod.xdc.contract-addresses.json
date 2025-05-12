@@ -1,5 +1,8 @@
 {
-  "xdc": {
-    "vvfitToken": "0x23db6050336b16fc7d7030956b03214537e55f2e"
-  }
+    "xdc": {
+        "vvfitToken": "0x23db6050336b16fc7d7030956b03214537e55f2e",
+        "vvwinToken": "0x59bB9753b9F72eCD5Eb95721635e5c76CaB8f816",
+        "workoutTreasury": "0x617E8812f9a37Fd2CBB833D9fd8b722A0e6632E3",
+        "workoutManagement": "0xFD65a17140019a4541996c44F7a5e6c0A9440ab3"
+    }
 }

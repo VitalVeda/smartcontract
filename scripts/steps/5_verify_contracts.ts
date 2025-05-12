@@ -18,11 +18,11 @@ export default async function main() {
     await hre.run("verify:verify", {
       address: contracts.vvwinToken,
       constructorArguments: [
-        "VVWINToken",
+        "VVWIN",
         "VVWIN",
         contracts.vvfitToken,
         5000,
-        ethers.parseEther("10"),
+        ethers.parseEther("100000"),
       ],
     })
   );
@@ -51,9 +51,9 @@ export default async function main() {
 }
 
 // Uncomment this if doing a sole deployment
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+// main()
+//   .then(() => process.exit(0))
+//   .catch((error) => {
+//     console.error(error);
+//     process.exit(1);
+//   });

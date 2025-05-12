@@ -14,11 +14,11 @@ export default async function main() {
   const workoutManagement = await upgrades.deployProxy(WorkoutManagement, [
     contracts.vvfitToken,
     contracts.workoutTreasury,
-    parseEther("5"), // 5 VVFIT
-    30000, // instructor rate 30%
-    30000, // burning rate 30%
-    parseEther("3000"), // minimum fee to join a challenge is 3000 VVFIT
-    parseEther("5000"), // max fee to join a challenge is 5000 VVFIT
+    parseEther("0"), // 5 VVFIT
+    0, // instructor rate 30%
+    0, // burning rate 30%
+    parseEther("0"), // minimum fee to join a challenge is 0 VVFIT
+    parseEther("13500"), // max fee to join a challenge is 13500 VVFIT
   ]);
   await workoutManagement.waitForDeployment();
   const workoutManagementAddress = await workoutManagement.getAddress();
